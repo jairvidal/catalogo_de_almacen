@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -50,6 +50,19 @@
             "Debe fallar con mensaje claro si no esta la extension GD"
           ],
           "status": "done"
+        },
+        {
+          "id": "CAT-03",
+          "name": "Sincronizar hacia public/img las fotos nuevas del storage de Supabase y crear con ellas los repuestos nuevos.",
+          "acceptance": [
+            "Listar el bucket paginando y entrando en las subcarpetas",
+            "Bajar solo lo que falta en public/img, con --forzar para rebajar y --simular para reportar sin escribir",
+            "Los archivos quedan con el nombre que ya reconoce ImportarRepuestos::buscarFoto ({codigo}.ext y {codigo}_v2.ext)",
+            "Avisar y omitir cuando dos rutas del bucket traen el mismo nombre de archivo",
+            "Poder emitir un CSV manifiesto listo para repuestos:importar --crear",
+            "Las fotos bajadas quedan en disco para que repuestos:clasificar les asigne categoria_id"
+          ],
+          "status": "in_progress"
         }
       ]
     },
