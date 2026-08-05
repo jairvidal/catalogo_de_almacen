@@ -1,0 +1,830 @@
+/* ==========================================================================
+   Catalogo de repuestos - estilos propios sobre Bootstrap 5.3
+
+   Paleta: almacen industrial. El rojo #f20a0a es rojo de SENALIZACION
+   (extintor, pulsador de parada, cinta de peligro): se usa plano, en
+   superficies pequenas, para decir "aqui esta la accion" o "aqui estas".
+   El resto de la pantalla es zinc de estanteria y carton: neutros calidos
+   derivados de #fafafa, nunca el slate azulado de Tailwind, porque un azul
+   frio al lado de un rojo saturado se pelean.
+
+   REGLA DE LOS DOS ROJOS (leer antes de tocar nada):
+   - Marca  #f20a0a  -> SIEMPRE relleno solido, texto blanco. Accion
+                        principal, indicadores, filete de "activo".
+   - Peligro #8f1616 -> rojo oxido, oscuro y desaturado. NUNCA relleno
+                        solido en reposo: siempre contorno o fondo tenue,
+                        y siempre acompanado de icono + texto.
+   La diferencia que percibe el usuario no es el hex, es la FORMA:
+   lo lleno es la marca, lo contorneado es destructivo.
+
+   Salvedad de contraste: #f20a0a da 4.35:1 sobre blanco. Alcanza para
+   relleno, indicador y texto grande, no para texto pequeno. Cuando la
+   marca va como TEXTO o enlace sobre claro se usa #c40808 (6.20:1), y en
+   los correos -donde no hay hover que compense- el boton tambien.
+
+   Los correos NO cargan esta hoja: llevan los colores en linea. Si toca
+   la paleta, actualice emails/pedido-listo y emails/nueva-solicitud.
+   ========================================================================== */
+
+:root {
+
+    /* --- Neutros: zinc de estanteria, calidos, derivados de #fafafa ------ */
+    --ca-neutro-50:  #fafafa;
+    --ca-neutro-100: #f2f1ef;
+    --ca-neutro-200: #e7e4e0;
+    --ca-neutro-300: #d6d2cc;
+    --ca-neutro-400: #b0aba3;
+    /* 500 y 600 estan calculados para que el texto terciario y el secundario
+       pasen 4.5:1 sobre #fafafa y sobre blanco. No los aclare. */
+    --ca-neutro-500: #77726b;
+    --ca-neutro-600: #625d57;
+    --ca-neutro-700: #4a4642;
+    --ca-neutro-800: #2e2b28;
+    --ca-neutro-900: #1c1a18;
+
+    /* --- Superficies con elevacion --------------------------------------- */
+    --ca-fondo: var(--ca-neutro-50);          /* lienzo de la pagina        */
+    --ca-superficie: #ffffff;                 /* tarjetas, tablas, navbar   */
+    --ca-superficie-tenue: var(--ca-neutro-100); /* agrupaciones, cabeceras */
+    --ca-superficie-hundida: var(--ca-neutro-100); /* inputs: reciben texto */
+    --ca-superficie-oscura: var(--ca-neutro-900);  /* panel lateral, login  */
+
+    /* --- Texto: cuatro niveles ------------------------------------------- */
+    --ca-texto: var(--ca-neutro-800);
+    --ca-texto-secundario: var(--ca-neutro-600);
+    --ca-texto-terciario: var(--ca-neutro-500);
+    --ca-texto-tenue: var(--ca-neutro-400);
+    --ca-texto-invertido: #ffffff;
+
+    /* --- Bordes en progresion -------------------------------------------- */
+    --ca-borde-suave: var(--ca-neutro-100);
+    --ca-borde: var(--ca-neutro-200);
+    --ca-borde-fuerte: var(--ca-neutro-300);
+
+    /* --- Marca: rojo de senalizacion ------------------------------------- */
+    --ca-primario: #f20a0a;
+    --ca-primario-oscuro: #c40808;
+    /* Contrastes medidos (ver changelog):
+       #f20a0a sobre blanco 4.35:1 / sobre #fafafa 4.17:1 -> alcanza para
+       relleno, indicador y texto grande, NO para texto pequeno.
+       #c40808 sobre blanco 6.20:1 / sobre #fafafa 5.94:1 -> ese es el que
+       se usa cuando la marca va como TEXTO o enlace sobre fondo claro. */
+    --ca-primario-texto: #c40808;
+    --ca-primario-claro: #fef0ef;
+    /* Contorno del boton de marca: 3.24:1 sobre blanco. Mas claro que esto
+       el boton pierde el borde y queda flotando. */
+    --ca-primario-borde: #ea645c;
+    --ca-primario-rgb: 242, 10, 10;
+
+    /* --- Semanticos ------------------------------------------------------ */
+    /* Peligro / destructivo / rechazado: oxido, no senalizacion. */
+    --ca-peligro: #8f1616;
+    --ca-peligro-oscuro: #6f1010;
+    --ca-peligro-claro: #f7ecec;
+    --ca-peligro-borde: #ddc1c1;
+
+    /* Listo / correcto: verde industrial, no verde de app. */
+    --ca-exito: #1f7a3d;
+    --ca-exito-oscuro: #175c2e;
+    --ca-exito-claro: #e9f3ec;
+    --ca-exito-borde: #bcd7c5;
+
+    /* En proceso / atencion: ambar de carton y cinta. */
+    --ca-atencion: #9a5b00;
+    --ca-atencion-oscuro: #7a4800;
+    --ca-atencion-claro: #fdf3e3;
+    --ca-atencion-borde: #ecd4a9;
+
+    /* --- Foco ------------------------------------------------------------ */
+    /* El borde de foco es el rojo pleno: un foco tenue no es un foco. */
+    --ca-foco-borde: var(--ca-primario);
+    --ca-foco-anillo: rgba(var(--ca-primario-rgb), .22);
+
+    /* --- Sombras: base calida, coherente con los neutros ------------------ */
+    --ca-sombra-1: 0 1px 2px rgba(28, 26, 24, .05);
+    --ca-sombra-2: 0 1px 2px -1px rgba(28, 26, 24, .07), 0 2px 6px rgba(28, 26, 24, .05);
+    --ca-sombra-3: 0 6px 20px rgba(28, 26, 24, .10);
+
+    /* --- Radios ---------------------------------------------------------- */
+    --ca-radio-sm: .375rem;
+    --ca-radio-md: .5rem;
+    --ca-radio-lg: .75rem;
+
+    /* --- Filete de senalizacion (el elemento distintivo) ------------------ */
+    --ca-filete: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Puente con Bootstrap: se reasignan sus variables para que las utilidades
+   del framework hablen esta paleta. Las clases que Bootstrap compila con
+   valores literales (.btn-*, .alert-*) se sobreescriben mas abajo.
+   -------------------------------------------------------------------------- */
+
+:root {
+    --bs-body-bg: var(--ca-fondo);
+    --bs-body-color: var(--ca-texto);
+    --bs-border-color: var(--ca-borde);
+    --bs-emphasis-color: var(--ca-neutro-900);
+    --bs-secondary-color: var(--ca-texto-secundario);
+
+    --bs-primary: var(--ca-primario);
+    --bs-primary-rgb: 242, 10, 10;
+    --bs-link-color: var(--ca-primario-texto);
+    --bs-link-color-rgb: 196, 8, 8;
+    --bs-link-hover-color: var(--ca-primario);
+
+    --bs-danger: var(--ca-peligro);
+    --bs-danger-rgb: 143, 22, 22;
+    --bs-danger-bg-subtle: var(--ca-peligro-claro);
+    --bs-danger-border-subtle: var(--ca-peligro-borde);
+    --bs-danger-text-emphasis: var(--ca-peligro);
+
+    --bs-success: var(--ca-exito);
+    --bs-success-rgb: 31, 122, 61;
+    --bs-success-bg-subtle: var(--ca-exito-claro);
+    --bs-success-border-subtle: var(--ca-exito-borde);
+    --bs-success-text-emphasis: var(--ca-exito-oscuro);
+
+    --bs-warning: var(--ca-atencion);
+    --bs-warning-rgb: 154, 91, 0;
+    --bs-warning-bg-subtle: var(--ca-atencion-claro);
+    --bs-warning-border-subtle: var(--ca-atencion-borde);
+    --bs-warning-text-emphasis: var(--ca-atencion-oscuro);
+
+    --bs-info: var(--ca-neutro-700);
+    --bs-info-rgb: 74, 70, 66;
+    --bs-info-bg-subtle: var(--ca-neutro-100);
+    --bs-info-border-subtle: var(--ca-neutro-300);
+    --bs-info-text-emphasis: var(--ca-neutro-700);
+
+    --bs-secondary-rgb: 98, 93, 87;
+    --bs-light-rgb: 242, 241, 239;
+    --bs-dark-rgb: 28, 26, 24;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+body {
+    background-color: var(--ca-fondo);
+    color: var(--ca-texto);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .h1, .h2, .h3 {
+    letter-spacing: -.015em;
+    text-wrap: balance;
+}
+
+p, .form-text, small {
+    text-wrap: pretty;
+}
+
+/* Cualquier numero que cambie no debe mover el layout. */
+.tarjeta-metrica .valor,
+.badge-carrito,
+.font-monospace,
+td[align="right"],
+[data-contador-carrito],
+[data-unidades-carrito] {
+    font-variant-numeric: tabular-nums;
+}
+
+hr {
+    border-color: var(--ca-borde);
+    opacity: 1;
+}
+
+.text-secondary { color: var(--ca-texto-secundario) !important; }
+.text-muted { color: var(--ca-texto-terciario) !important; }
+
+/* --------------------------------------------------------------------------
+   Marca: relleno solido, superficie pequena
+   -------------------------------------------------------------------------- */
+
+.text-marca { color: var(--ca-primario-texto) !important; }
+.bg-marca { background-color: var(--ca-primario) !important; }
+
+.text-bg-marca {
+    background-color: var(--ca-primario) !important;
+    color: var(--ca-texto-invertido) !important;
+}
+
+.btn-marca {
+    background-color: var(--ca-primario);
+    border-color: var(--ca-primario);
+    color: var(--ca-texto-invertido);
+    font-weight: 500;
+    transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.btn-marca:hover,
+.btn-marca:focus {
+    background-color: var(--ca-primario-oscuro);
+    border-color: var(--ca-primario-oscuro);
+    color: var(--ca-texto-invertido);
+}
+
+.btn-marca:active { transform: scale(.985); }
+
+.btn-marca:disabled,
+.btn-marca.disabled {
+    background-color: var(--ca-neutro-300);
+    border-color: var(--ca-neutro-300);
+    color: var(--ca-neutro-600);
+}
+
+.btn-outline-marca {
+    color: var(--ca-primario-texto);
+    border-color: var(--ca-primario-borde);
+    font-weight: 500;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+}
+
+.btn-outline-marca:hover,
+.btn-outline-marca:focus {
+    background-color: var(--ca-primario);
+    border-color: var(--ca-primario);
+    color: var(--ca-texto-invertido);
+}
+
+.btn-outline-marca:active { transform: scale(.985); }
+
+/* --------------------------------------------------------------------------
+   Controles y foco
+   -------------------------------------------------------------------------- */
+
+/* Los inputs van mas oscuros que su entorno: son huecos que reciben texto. */
+.form-control,
+.form-select {
+    background-color: var(--ca-superficie-hundida);
+    border-color: var(--ca-borde);
+    border-radius: var(--ca-radio-sm);
+    color: var(--ca-texto);
+}
+
+/* El placeholder es texto que hay que poder leer: nivel terciario (4.57:1),
+   no el tenue, que a ese tamano queda en 2.3:1. */
+.form-control::placeholder { color: var(--ca-texto-terciario); }
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus,
+.btn:focus-visible,
+a:focus-visible {
+    background-color: var(--ca-superficie);
+    border-color: var(--ca-foco-borde);
+    box-shadow: 0 0 0 .2rem var(--ca-foco-anillo);
+    outline: none;
+}
+
+.form-check-input:checked {
+    background-color: var(--ca-primario);
+    border-color: var(--ca-primario);
+}
+
+/* --------------------------------------------------------------------------
+   Chip de color de categoria
+   --------------------------------------------------------------------------
+   El color de relleno NO sale de la paleta: es un dato de tbl_categoria (el
+   color real del marco impreso en la foto del repuesto), asi que llega en el
+   atributo style de la vista. Aqui solo vive la forma. El contorno neutro
+   garantiza que un chip claro (durazno) o blanco siga siendo visible. */
+
+.chip-color {
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    border: 1px solid var(--ca-borde-fuerte);
+    vertical-align: middle;
+    flex: 0 0 auto;
+}
+
+.chip-color-sm {
+    width: .6rem;
+    height: .6rem;
+}
+
+/* --------------------------------------------------------------------------
+   Semanticos: lo destructivo se contornea, no se rellena
+   -------------------------------------------------------------------------- */
+
+.btn-danger {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--ca-peligro);
+    --bs-btn-border-color: var(--ca-peligro);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--ca-peligro-oscuro);
+    --bs-btn-hover-border-color: var(--ca-peligro-oscuro);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--ca-peligro-oscuro);
+    --bs-btn-active-border-color: var(--ca-peligro-oscuro);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: var(--ca-peligro);
+    --bs-btn-disabled-border-color: var(--ca-peligro);
+    --bs-btn-focus-shadow-rgb: 143, 22, 22;
+}
+
+/* El contorno del destructivo va con el oxido pleno, no con el borde tenue:
+   es la FORMA (contorneado) la que lo separa de la marca, asi que el
+   contorno tiene que verse. */
+.btn-outline-danger {
+    --bs-btn-color: var(--ca-peligro);
+    --bs-btn-border-color: var(--ca-peligro);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--ca-peligro);
+    --bs-btn-hover-border-color: var(--ca-peligro);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--ca-peligro-oscuro);
+    --bs-btn-active-border-color: var(--ca-peligro-oscuro);
+    --bs-btn-disabled-color: var(--ca-peligro);
+    --bs-btn-disabled-border-color: var(--ca-peligro-borde);
+    --bs-btn-focus-shadow-rgb: 143, 22, 22;
+}
+
+.btn-success {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--ca-exito);
+    --bs-btn-border-color: var(--ca-exito);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--ca-exito-oscuro);
+    --bs-btn-hover-border-color: var(--ca-exito-oscuro);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--ca-exito-oscuro);
+    --bs-btn-active-border-color: var(--ca-exito-oscuro);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: var(--ca-exito);
+    --bs-btn-disabled-border-color: var(--ca-exito);
+    --bs-btn-focus-shadow-rgb: 31, 122, 61;
+}
+
+/* Bootstrap compila .btn-dark y .btn-outline-secondary con un gris frio
+   (#212529 / #6c757d): se traen a los neutros calidos del sistema. */
+.btn-dark {
+    --bs-btn-bg: var(--ca-neutro-800);
+    --bs-btn-border-color: var(--ca-neutro-800);
+    --bs-btn-hover-bg: var(--ca-neutro-900);
+    --bs-btn-hover-border-color: var(--ca-neutro-900);
+    --bs-btn-active-bg: var(--ca-neutro-900);
+    --bs-btn-active-border-color: var(--ca-neutro-900);
+    --bs-btn-disabled-bg: var(--ca-neutro-800);
+    --bs-btn-disabled-border-color: var(--ca-neutro-800);
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--ca-texto-secundario);
+    --bs-btn-border-color: var(--ca-borde-fuerte);
+    --bs-btn-hover-color: var(--ca-texto);
+    --bs-btn-hover-bg: var(--ca-neutro-100);
+    --bs-btn-hover-border-color: var(--ca-neutro-400);
+    --bs-btn-active-color: var(--ca-texto);
+    --bs-btn-active-bg: var(--ca-neutro-200);
+    --bs-btn-active-border-color: var(--ca-neutro-400);
+    --bs-btn-disabled-color: var(--ca-texto-tenue);
+    --bs-btn-disabled-border-color: var(--ca-borde);
+}
+
+/* Avisos: fondo tenue + filete lateral. El de error nunca es rojo de marca. */
+.alert {
+    border: 1px solid transparent;
+    border-left-width: var(--ca-filete);
+    border-radius: var(--ca-radio-md);
+}
+
+.alert-success {
+    --bs-alert-color: var(--ca-exito-oscuro);
+    --bs-alert-bg: var(--ca-exito-claro);
+    --bs-alert-border-color: var(--ca-exito-borde);
+    border-left-color: var(--ca-exito);
+}
+
+.alert-danger {
+    --bs-alert-color: var(--ca-peligro);
+    --bs-alert-bg: var(--ca-peligro-claro);
+    --bs-alert-border-color: var(--ca-peligro-borde);
+    border-left-color: var(--ca-peligro);
+}
+
+.alert-warning {
+    --bs-alert-color: var(--ca-atencion-oscuro);
+    --bs-alert-bg: var(--ca-atencion-claro);
+    --bs-alert-border-color: var(--ca-atencion-borde);
+    border-left-color: var(--ca-atencion);
+}
+
+.alert-info {
+    --bs-alert-color: var(--ca-neutro-700);
+    --bs-alert-bg: var(--ca-neutro-100);
+    --bs-alert-border-color: var(--ca-neutro-300);
+    border-left-color: var(--ca-neutro-500);
+}
+
+/* Bootstrap 5.3 no trae .text-bg-*-subtle; las vistas ya las usaban y
+   quedaban sin fondo. Se definen aqui para que el chip tenue exista. */
+.text-bg-danger-subtle { background-color: var(--ca-peligro-claro) !important; }
+.text-bg-success-subtle { background-color: var(--ca-exito-claro) !important; }
+.text-bg-warning-subtle { background-color: var(--ca-atencion-claro) !important; }
+
+/* --------------------------------------------------------------------------
+   Estados de la solicitud
+
+   Ninguno usa el rojo de marca: la marca dice "accion", el estado dice
+   "situacion". Los cinco se separan por tono Y por luminosidad, asi que
+   siguen siendo distinguibles en blanco y negro y para un daltonico:
+   claro/neutro -> ambar -> verde -> grafito solido -> oxido.
+   -------------------------------------------------------------------------- */
+
+.text-bg-estado-pendiente,
+.text-bg-estado-en-proceso,
+.text-bg-estado-listo,
+.text-bg-estado-entregada,
+.text-bg-estado-rechazada {
+    border: 1px solid transparent;
+    font-weight: 500;
+}
+
+.text-bg-estado-pendiente {
+    background-color: var(--ca-neutro-100) !important;
+    border-color: var(--ca-neutro-300);
+    color: var(--ca-neutro-700) !important;
+}
+
+.text-bg-estado-en-proceso {
+    background-color: var(--ca-atencion-claro) !important;
+    border-color: var(--ca-atencion-borde);
+    color: var(--ca-atencion-oscuro) !important;
+}
+
+.text-bg-estado-listo {
+    background-color: var(--ca-exito-claro) !important;
+    border-color: var(--ca-exito-borde);
+    color: var(--ca-exito-oscuro) !important;
+}
+
+/* Entregada = expediente cerrado: solido y sin energia, no compite. */
+.text-bg-estado-entregada {
+    background-color: var(--ca-neutro-800) !important;
+    border-color: var(--ca-neutro-800);
+    color: var(--ca-texto-invertido) !important;
+}
+
+/* Rechazada = el rojo semantico, nunca el de marca. */
+.text-bg-estado-rechazada {
+    background-color: var(--ca-peligro-claro) !important;
+    border-color: var(--ca-peligro-borde);
+    color: var(--ca-peligro) !important;
+}
+
+/* Mismos estados como color de texto/icono (tarjetas de metrica del panel). */
+.text-estado-todas { color: var(--ca-texto-terciario) !important; }
+.text-estado-pendiente { color: var(--ca-neutro-600) !important; }
+.text-estado-en-proceso { color: var(--ca-atencion) !important; }
+.text-estado-listo { color: var(--ca-exito) !important; }
+.text-estado-entregada { color: var(--ca-neutro-800) !important; }
+.text-estado-rechazada { color: var(--ca-peligro) !important; }
+
+/* --------------------------------------------------------------------------
+   Encabezado publico
+   -------------------------------------------------------------------------- */
+
+.navbar-app {
+    background-color: var(--ca-superficie);
+    border-bottom: 1px solid var(--ca-borde);
+    box-shadow: var(--ca-sombra-1);
+}
+
+.navbar-app .navbar-brand {
+    font-weight: 700;
+    letter-spacing: -.02em;
+    color: var(--ca-primario);
+}
+
+.navbar-app .navbar-brand:hover { color: var(--ca-primario-oscuro); }
+
+.navbar-app .nav-link {
+    position: relative;
+    color: var(--ca-texto-secundario);
+}
+
+.navbar-app .nav-link:hover { color: var(--ca-texto); }
+
+/* Filete de senalizacion: marca donde estas sin pintar la barra de rojo. */
+.navbar-app .nav-link.active::after {
+    content: "";
+    position: absolute;
+    left: .5rem;
+    right: .5rem;
+    bottom: .1rem;
+    height: var(--ca-filete);
+    border-radius: var(--ca-filete);
+    background: var(--ca-primario);
+}
+
+.badge-carrito {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    font-size: .68rem;
+    min-width: 1.25rem;
+    box-shadow: 0 0 0 2px var(--ca-superficie);
+}
+
+/* --------------------------------------------------------------------------
+   Tarjetas del catalogo
+   -------------------------------------------------------------------------- */
+
+.card-repuesto {
+    position: relative;
+    border: 1px solid var(--ca-borde);
+    border-radius: var(--ca-radio-lg);
+    background-color: var(--ca-superficie);
+    overflow: hidden;
+    transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+    height: 100%;
+}
+
+.card-repuesto::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--ca-filete);
+    background: var(--ca-primario);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .2s cubic-bezier(.23, 1, .32, 1);
+    z-index: 2;
+}
+
+.card-repuesto:hover {
+    border-color: var(--ca-borde-fuerte);
+    box-shadow: var(--ca-sombra-3);
+    transform: translateY(-2px);
+}
+
+.card-repuesto:hover::before { transform: scaleX(1); }
+
+.card-repuesto .repuesto-foto {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    background-color: var(--ca-superficie);
+    overflow: hidden;
+}
+
+.card-repuesto .repuesto-foto img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: .75rem;
+    transition: transform .25s ease;
+}
+
+.card-repuesto:hover .repuesto-foto img {
+    transform: scale(1.05);
+}
+
+.card-repuesto .repuesto-codigo {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: .78rem;
+    color: var(--ca-texto-terciario);
+}
+
+.card-repuesto .repuesto-nombre {
+    font-size: .95rem;
+    font-weight: 600;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.6em;
+}
+
+/* Cinta de "agotado" sobre la foto */
+.cinta-agotado {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(250, 250, 250, .82);
+    backdrop-filter: blur(1px);
+}
+
+/* --------------------------------------------------------------------------
+   Detalle del repuesto y miniaturas
+   -------------------------------------------------------------------------- */
+
+.foto-detalle {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    background: var(--ca-superficie);
+    border: 1px solid var(--ca-borde);
+    border-radius: var(--ca-radio-lg);
+    padding: 1.25rem;
+}
+
+.miniatura {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    background: var(--ca-superficie);
+    border: 1px solid var(--ca-borde);
+    border-radius: var(--ca-radio-md);
+    padding: .15rem;
+}
+
+.miniatura-lg {
+    width: 84px;
+    height: 84px;
+}
+
+/* --------------------------------------------------------------------------
+   Panel de administracion
+   -------------------------------------------------------------------------- */
+
+.panel-sidebar {
+    background-color: var(--ca-superficie-oscura);
+    min-height: 100%;
+}
+
+.panel-sidebar .nav-link {
+    position: relative;
+    color: var(--ca-neutro-400);
+    border-radius: var(--ca-radio-md);
+    padding: .6rem .85rem;
+    margin-bottom: .2rem;
+    font-size: .93rem;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.panel-sidebar .nav-link:hover {
+    background-color: rgba(255, 255, 255, .07);
+    color: var(--ca-texto-invertido);
+}
+
+/* Activo: fondo tenue + filete rojo. Rellenar el item entero de #f20a0a
+   sobre grafito es demasiada superficie saturada para un menu permanente. */
+.panel-sidebar .nav-link.active {
+    background-color: rgba(255, 255, 255, .09);
+    color: var(--ca-texto-invertido);
+    font-weight: 600;
+}
+
+.panel-sidebar .nav-link.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .45rem;
+    bottom: .45rem;
+    width: var(--ca-filete);
+    border-radius: var(--ca-filete);
+    background: var(--ca-primario);
+}
+
+.panel-sidebar hr { border-color: rgba(255, 255, 255, .12); }
+
+.tarjeta-metrica {
+    position: relative;
+    border: 1px solid var(--ca-borde);
+    border-left: var(--ca-filete) solid var(--ca-borde-fuerte);
+    border-radius: var(--ca-radio-lg);
+    background: var(--ca-superficie);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.tarjeta-metrica:hover {
+    border-color: var(--ca-borde-fuerte);
+    border-left-color: var(--ca-primario);
+    box-shadow: var(--ca-sombra-2);
+}
+
+/* Filtro seleccionado: el filete rojo dice "estas aqui". */
+.tarjeta-metrica.activa {
+    border-color: var(--ca-borde-fuerte);
+    border-left-color: var(--ca-primario);
+    background: var(--ca-superficie);
+}
+
+.tarjeta-metrica .valor {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ca-texto);
+}
+
+/* Cabeceras de tabla: superficie hundida, etiqueta demotada. */
+.table > thead th {
+    background-color: var(--ca-superficie-tenue);
+    color: var(--ca-texto-secundario);
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    border-bottom-color: var(--ca-borde);
+}
+
+/* --------------------------------------------------------------------------
+   Linea de tiempo del estado de la solicitud
+   -------------------------------------------------------------------------- */
+
+.linea-tiempo {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.linea-tiempo li {
+    position: relative;
+    padding-left: 1.75rem;
+    padding-bottom: 1.1rem;
+}
+
+.linea-tiempo li::before {
+    content: "";
+    position: absolute;
+    left: .3rem;
+    top: .35rem;
+    width: .65rem;
+    height: .65rem;
+    border-radius: 50%;
+    background: var(--ca-borde-fuerte);
+}
+
+.linea-tiempo li.cumplido::before {
+    background: var(--ca-primario);
+}
+
+.linea-tiempo li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: .59rem;
+    top: 1.05rem;
+    bottom: .1rem;
+    width: 2px;
+    background: var(--ca-borde);
+}
+
+/* --------------------------------------------------------------------------
+   Notificaciones flotantes
+   -------------------------------------------------------------------------- */
+
+.zona-toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1090;
+    max-width: min(24rem, calc(100vw - 2rem));
+}
+
+.zona-toast .toast {
+    box-shadow: var(--ca-sombra-3);
+    border-radius: var(--ca-radio-md);
+}
+
+/* --------------------------------------------------------------------------
+   Accesibilidad
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .card-repuesto,
+    .card-repuesto .repuesto-foto img,
+    .card-repuesto::before,
+    .btn-marca,
+    .btn-outline-marca {
+        transition-property: background-color, border-color, color;
+    }
+
+    .card-repuesto:hover { transform: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Impresion del pedido
+   -------------------------------------------------------------------------- */
+
+@media print {
+    .navbar-app,
+    .panel-sidebar,
+    .no-imprimir,
+    footer {
+        display: none !important;
+    }
+
+    body {
+        background: #fff;
+    }
+
+    .card,
+    .tarjeta-metrica {
+        border: 1px solid var(--ca-borde-fuerte) !important;
+        box-shadow: none !important;
+    }
+
+    .card-repuesto::before,
+    .tarjeta-metrica { border-left-color: var(--ca-borde-fuerte) !important; }
+}

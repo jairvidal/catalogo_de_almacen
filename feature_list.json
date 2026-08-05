@@ -1,0 +1,75 @@
+{
+  "project": "Catalogo Almacen",
+  "version": "1.2.0",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "valid_status": ["pending", "in_progress", "done", "blocked"]
+  },
+  "modules": [
+    {
+      "id": 2,
+      "name": "Administrador",
+      "prefijo": "ADM",
+      "features": [
+        {
+          "id": "ADM-01",
+          "name": "Adicionar modulo CRUD Rol que permita gestionar los roles",
+          "acceptance": [
+            "Debe permitir agregar, modificar, anular un rol",
+            "Debe estar relacionado con el usuario de la table users"
+          ],
+          "status": "done"
+        }
+      ]
+    },
+     {
+      "id": 3,
+      "name": "Catalogo_inventario",
+      "prefijo": "CAT",
+      "features": [
+        {
+          "id": "CAT-01",
+          "name": "Adicionar modulo CRUD Categorias que permita gestionar las diferentes categorias del catalogo.",
+          "acceptance": [
+            "Debe permitir agregar, modificar, anular una categoria",
+            "Anular no borra: pone col_activo = false, porque los repuestos apuntan por FK",
+            "No se puede anular una categoria con repuestos activos asociados",
+            "Solo el administrador entra al modulo (middleware es.admin)",
+            "El catalogo publico se puede filtrar por categoria y el detalle la muestra"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-02",
+          "name": "Clasificar automaticamente los repuestos por el color del marco de la foto.",
+          "acceptance": [
+            "Detectar el color del marco de cada imagen de public/img y asignar categoria_id",
+            "Azul marino y celeste deben quedar como categorias distintas",
+            "El comando debe poder simular sin escribir y forzar la reasignacion",
+            "El conteo debe dar Rojo 153, Celeste 102, Morado 83, Negro 56, Verde 42, Durazno 30, Azul 23",
+            "Debe fallar con mensaje claro si no esta la extension GD"
+          ],
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Interfaz",
+      "prefijo": "UI",
+      "features": [
+        {
+          "id": "UI-01",
+          "name": "Cambiar la paleta de la interfaz a rojo de senalizacion #f20a0a sobre fondo #fafafa",
+          "acceptance": [
+            "Los dos colores pedidos deben aparecer literales en los tokens --ca-*",
+            "Los neutros deben ser una sola familia calida, sin el slate azulado anterior",
+            "El rojo de marca debe distinguirse del rojo de peligro por forma, no solo por tono",
+            "El texto debe cumplir contraste AA sobre las superficies claras"
+          ],
+          "status": "done"
+        }
+      ]
+    }
+  ]
+}
