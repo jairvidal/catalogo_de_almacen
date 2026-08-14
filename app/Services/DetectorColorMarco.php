@@ -7,10 +7,12 @@ namespace App\Services;
  * borde de su foto. Los nombres de los repuestos no correlacionan con el color:
  * el marco es el unico dato de categoria que traen las 489 imagenes del catalogo.
  *
- * Umbrales calibrados contra las 489 fotos de public/img. Cada grupo esta
- * dominado por un solo hex, asi que no hace falta agrupar por cercania:
+ * Umbrales calibrados contra las 489 fotos de la carga inicial y revalidados
+ * contra las 102 de la segunda carga. Cada grupo esta dominado por un solo
+ * hex, asi que no hace falta agrupar por cercania:
  *   rojo #D81818 | celeste #00A8F0 y #00A8D8 | morado #603090 | negro #000000
  *   verde #00A848 | durazno #F0C0A8 | azul #000090, #0030A8, #183090, #1830A8
+ *   rosa #D890D8 | fucsia #A80078 | gris #A8A8A8 | amarillo #F0F000
  *
  * Azul marino y celeste son categorias distintas del almacen y no se fusionan:
  * los separa el corte de matiz en 200 grados.
@@ -20,6 +22,7 @@ class DetectorColorMarco
     /** Claves de color que corresponden a una categoria del almacen. */
     public const SLUGS_CONOCIDOS = [
         'rojo', 'celeste', 'morado', 'negro', 'verde', 'durazno', 'azul',
+        'rosa', 'fucsia', 'gris', 'amarillo',
     ];
 
     /** Ancho de la banda exterior que se muestrea, como fraccion del lado menor. */
@@ -45,6 +48,15 @@ class DetectorColorMarco
 
     /** Un color muy oscuro es negro aunque su matiz haya salido saturado. */
     private const LUMINOSIDAD_NEGRO = 45.0;
+
+    /**
+     * Luminosidad que separa el rosa claro #D890D8 (luminosidad 180) del
+     * fucsia #A80078 (luminosidad 84). Comparten el tramo de matiz >= 290
+     * pero son dos marcos distintos del almacen, no la misma tinta impresa
+     * con mas o menos carga. El corte va en el punto medio de los dos tonos
+     * medidos para que el ruido de compresion no cruce la frontera.
+     */
+    private const LUMINOSIDAD_ROSA = 132.0;
 
     public function disponible(): bool
     {
@@ -187,7 +199,7 @@ class DetectorColorMarco
             $matiz < 200 => 'celeste',
             $matiz < 260 => 'azul',
             $matiz < 290 => 'morado',
-            default => 'rosa',
+            default => $luminosidad >= self::LUMINOSIDAD_ROSA ? 'rosa' : 'fucsia',
         };
 
         // Un marco casi negro puede dar un matiz saturado por el ruido del JPEG.

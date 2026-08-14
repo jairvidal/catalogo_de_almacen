@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -63,6 +63,21 @@
             "Las fotos bajadas quedan en disco para que repuestos:clasificar les asigne categoria_id"
           ],
           "status": "in_progress"
+        },
+        {
+          "id": "CAT-04",
+          "name": "Adicionar al catalogo las imagenes de public/img con fecha de creacion del 2026-08-05 y cerrar los colores de marco que faltaban.",
+          "acceptance": [
+            "Filtrar por CreationTime del 2026-08-05, no por fecha de modificacion",
+            "Derivar el codigo del nombre del archivo y no importar los que no lo tengan",
+            "No duplicar codigos ya existentes ni importar los que estan en conflicto de asignacion",
+            "Insertar con upsert en lotes de 120 dentro de una transaccion",
+            "Los campos que no vienen de la imagen usan el mismo criterio crc32 del seeder",
+            "Crear las categorias de los colores de marco que aparecieron en esta carga",
+            "La calibracion de las siete categorias originales no se puede mover al tocar el detector",
+            "Toda repuestos.foto no nula debe tener archivo fisico en public/img"
+          ],
+          "status": "done"
         }
       ]
     },

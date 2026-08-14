@@ -7,7 +7,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * Un archivo real de public/img por cada uno de los siete colores de marco.
+ * Un archivo real de public/img por cada uno de los once colores de marco.
  * Si alguno cambia de clasificacion, `repuestos:clasificar` empieza a mover
  * repuestos de categoria en silencio, asi que estos casos son el candado.
  */
@@ -26,6 +26,10 @@ class DetectorColorMarcoTest extends TestCase
             'verde' => ['0010964.jpg', 'verde', '#00A848'],
             'durazno' => ['0012801.jpg', 'durazno', '#F0C0A8'],
             'azul' => ['0008159.jpg', 'azul', '#000090'],
+            'rosa' => ['0003961.jpg', 'rosa', '#D890D8'],
+            'fucsia' => ['0003507.jpg', 'fucsia', '#A80078'],
+            'gris' => ['0001220.jpg', 'gris', '#A8A8A8'],
+            'amarillo' => ['0017074.jpg', 'amarillo', '#F0F000'],
         ];
     }
 
@@ -55,6 +59,23 @@ class DetectorColorMarcoTest extends TestCase
         $this->assertNotNull($azul);
         $this->assertNotNull($celeste);
         $this->assertNotSame($azul->slug, $celeste->slug);
+    }
+
+    /**
+     * El rosa claro y el fucsia comparten el tramo de matiz >= 290 y solo los
+     * separa la luminosidad. Si el corte se mueve, los 41 repuestos de esos dos
+     * marcos se mezclan en una sola categoria.
+     */
+    public function test_el_rosa_claro_y_el_fucsia_no_se_confunden(): void
+    {
+        $detector = new DetectorColorMarco;
+
+        $rosa = $detector->detectar(public_path('img/0003961.jpg'));
+        $fucsia = $detector->detectar(public_path('img/0003507.jpg'));
+
+        $this->assertNotNull($rosa);
+        $this->assertNotNull($fucsia);
+        $this->assertNotSame($rosa->slug, $fucsia->slug);
     }
 
     public function test_devuelve_null_cuando_el_archivo_no_existe(): void

@@ -72,22 +72,30 @@ CRUD en `/admin/roles`, solo para el admin. Columnas con el prefijo de la conven
 
 ### Categorías (`tbl_categoria`)
 
-**La categoría de un repuesto es el color del marco impreso en el borde de su foto.** Las 489 imágenes de `public/img` traen ese marco y es el único dato de categoría que existe: los nombres no correlacionan (cada color mezcla filtros, válvulas, tornillos y rodamientos), así que **nunca intente inferir la categoría por el nombre**.
+**La categoría de un repuesto es el color del marco impreso en el borde de su foto.** Las imágenes de `public/img` traen ese marco y es el único dato de categoría que existe: los nombres no correlacionan (cada color mezcla filtros, válvulas, tornillos y rodamientos), así que **nunca intente inferir la categoría por el nombre**.
 
-Siete colores, sembrados por `CategoriaSeeder` y nombrados por su color a la espera de que el administrador les ponga el nombre real desde el panel:
+Once colores, sembrados por `CategoriaSeeder` y nombrados por su color a la espera de que el administrador les ponga el nombre real desde el panel. Los siete primeros salieron de la carga inicial de 489 fotos; rosa, gris, fucsia y amarillo aparecieron en la segunda carga de 102:
 
 | Categoría | `col_slug` | `col_color_hex` | Repuestos |
 |---|---|---|---|
 | Rojo | `rojo` | `#D81818` | 153 |
-| Celeste | `celeste` | `#00A8F0` | 102 |
-| Morado | `morado` | `#603090` | 83 |
+| Celeste | `celeste` | `#00A8F0` | 103 |
+| Morado | `morado` | `#603090` | 94 |
 | Negro | `negro` | `#000000` | 56 |
+| Azul | `azul` | `#000090` | 48 |
 | Verde | `verde` | `#00A848` | 42 |
-| Durazno | `durazno` | `#F0C0A8` | 30 |
-| Azul | `azul` | `#000090` | 23 |
+| Rosa | `rosa` | `#D890D8` | 33 |
+| Durazno | `durazno` | `#F0C0A8` | 31 |
+| Gris | `gris` | `#A8A8A8` | 13 |
+| Fucsia | `fucsia` | `#A80078` | 8 |
+| Amarillo | `amarillo` | `#F0F000` | 3 |
+
+Quedan **7 repuestos sin `categoria_id`** sobre 591: cuatro PNG cuyo marco no se distingue del margen y tres fotos tomadas con celular que no tienen marco (ver más abajo).
 
 - **Azul marino y celeste son categorías distintas y no se fusionan**: las separa el corte de matiz en 200 grados (celeste 193-198, azul 222-240).
-- `App\Services\DetectorColorMarco` muestrea la banda exterior (8% de cada lado), descarta el casi-blanco del margen (>235 en los tres canales), cuantiza a bloques de 24 y clasifica por saturación / matiz / luminosidad. **El durazno `#F0C0A8` cae en matiz 20, igual que un naranja fuerte; lo que los separa es la luminosidad** (≥180 es durazno). Los umbrales están calibrados contra las 489 fotos: cualquier cambio hay que cotejarlo contra los conteos de la tabla de arriba.
+- **Rosa y fucsia tampoco se fusionan**: comparten el tramo de matiz ≥ 290 y los separa la luminosidad (rosa `#D890D8` en 180, fucsia `#A80078` en 84), con el corte en 132. Se verificó en las fotos que son dos marcos distintos del almacén, no la misma tinta con más o menos carga.
+- **No existe una categoría "blanco"**, y no debe crearse a partir de lo que reporte el detector: su único caso era una foto de celular sin marco donde el detector midió el piso con 9.3% de dominancia. Lo mismo pasó con otras dos fotos de celular (`0040470`, `0040471`), que quedaron con `categoria_id` nulo a mano. **Un umbral mínimo de dominancia no sirve para atajar esos falsos positivos**: la foto legítima `0031454.jpg` tiene 13.3%, por debajo de ellos, así que el umbral movería un repuesto real de categoría.
+- `App\Services\DetectorColorMarco` muestrea la banda exterior (8% de cada lado), descarta el casi-blanco del margen (>235 en los tres canales), cuantiza a bloques de 24 y clasifica por saturación / matiz / luminosidad. **El durazno `#F0C0A8` cae en matiz 20, igual que un naranja fuerte; lo que los separa es la luminosidad** (≥180 es durazno). Los umbrales están calibrados contra las 489 fotos de la carga inicial y revalidados contra las 102 de la segunda: cualquier cambio hay que cotejarlo contra los conteos de la tabla de arriba corriendo `repuestos:clasificar --simular --forzar`, que reporta sin escribir.
 - `php artisan repuestos:clasificar` escribe `repuestos.categoria_id`. Por defecto solo llena los nulos; `--forzar` reasigna todo y `--simular` reporta sin escribir. Actualiza en lotes de 120 ids por el límite de 2100 parámetros y falla con mensaje claro si falta la extensión GD.
 - **`col_slug` es inmutable**: es la clave con la que el detector y el seeder reconocen el registro. El formulario no lo envía (no es `fillable`), lo deriva `CategoriaService::crear()` del nombre, y `update` no lo toca. Renombrar la categoría desde el panel es seguro; cambiarle el slug rompería la clasificación y haría que el seeder creara un duplicado.
 - **Anular ≠ borrar**: `destroy` pone `col_activo = false`. `CategoriaService::anular()` releé con `lockForUpdate()` dentro de la transacción y bloquea la anulación si la categoría tiene repuestos **activos** asociados.
@@ -103,6 +111,10 @@ Las dos vistas públicas de una solicitud están protegidas sin autenticación:
 ### Imágenes
 
 `repuestos.foto` guarda solo el **nombre de archivo** dentro de `public/img/`, normalmente el código del repuesto (`0003729.jpg`, `0015040_v2.png`). El accesor `foto_url` cae en `assets/img/sin-foto.svg` si el archivo no existe. `RepuestoSeeder` construye el catálogo recorriendo esa carpeta y `ImportarRepuestos --crear` asocia la foto sola si encuentra `{codigo}.{ext}` o `{codigo}_v2.{ext}`.
+
+Los datos que no vienen de la imagen (nombre, línea, ubicación, stock) los produce `App\Services\GeneradorDatosRepuesto` a partir del `crc32` del código, de modo que el mismo código siempre da el mismo resultado y volver a sembrar no altera lo ya publicado. **`RepuestoSeeder` lo consume; cualquier alta masiva nueva debe usarlo también** en vez de repetir el criterio, o las filas dejarán de ser homogéneas.
+
+`public/img` tiene hoy **758 archivos** para 591 repuestos: sobran fotos alternas, tres imágenes sin código derivable (`activo_fijo_*`) y varios códigos con dos extensiones. La carpeta **no es un espejo del catálogo** y no debe tratarse como tal.
 
 ## Frontend
 
@@ -136,5 +148,5 @@ Todo el color vive en los tokens `--ca-*` del `:root` de `app.css`, que además 
 - La lógica de negocio con transacciones vive en `app/Services`; los controladores solo validan, delegan y redirigen con `back()->with(...)`.
 - Los repuestos no se borran: `destroy` solo pone `activo = false`, porque los items históricos apuntan al registro.
 - **Tablas nuevas**: `tbl_<nombre>` con `id` bigint autoincremental y columnas con prefijo `col_` (ver `tbl_rol`, `tbl_categoria`). Las tablas anteriores a esta convención (`repuestos`, `solicitudes`, `solicitud_items`, `users`) se dejan como están; las FK que se les agregan sí van sin prefijo para no mezclar estilos dentro de la misma tabla (`repuestos.categoria_id`, `users.rol_id`).
-- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.2.0**.
+- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.2.2**.
 - `phpunit.xml` apunta a la base real, así que las pruebas usan `DatabaseTransactions` y **no** `RefreshDatabase` (ver `tests/Feature/RolAdminTest`).
