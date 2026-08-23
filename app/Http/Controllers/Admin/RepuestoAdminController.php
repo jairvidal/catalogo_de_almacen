@@ -21,10 +21,10 @@ class RepuestoAdminController extends Controller
 
         $repuestos = Repuesto::query()
             ->buscar($termino)
-            ->when($filtro === 'agotados', fn ($q) => $q->where('cantidad_disponible', '<=', 0))
-            ->when($filtro === 'bajos', fn ($q) => $q->whereColumn('cantidad_disponible', '<=', 'stock_minimo')
-                ->where('cantidad_disponible', '>', 0))
-            ->when($filtro === 'inactivos', fn ($q) => $q->where('activo', false))
+            ->when($filtro === 'agotados', fn ($q) => $q->where('existencia', '<=', 0))
+            ->when($filtro === 'bajos', fn ($q) => $q->whereColumn('existencia', '<=', 'stock_minimo')
+                ->where('existencia', '>', 0))
+            ->when($filtro === 'inactivos', fn ($q) => $q->where('estado', Repuesto::ESTADO_INACTIVO))
             ->orderBy('codigo')
             ->paginate(20)
             ->withQueryString();
@@ -33,20 +33,17 @@ class RepuestoAdminController extends Controller
             'repuestos' => $repuestos,
             'termino' => $termino,
             'filtro' => $filtro,
-            'totales' => [
-                'todos' => Repuesto::count(),
-                'agotados' => Repuesto::where('cantidad_disponible', '<=', 0)->count(),
-                'bajos' => Repuesto::whereColumn('cantidad_disponible', '<=', 'stock_minimo')
-                    ->where('cantidad_disponible', '>', 0)->count(),
-                'inactivos' => Repuesto::where('activo', false)->count(),
-            ],
+            'totales' => $this->totales(),
         ]);
     }
 
     public function create(): View
     {
         return view('admin.repuestos.form', [
-            'repuesto' => new Repuesto(['unidad_medida' => 'UND', 'activo' => true]),
+            'repuesto' => new Repuesto([
+                'unidad_medida' => 'UND',
+                'estado' => Repuesto::ESTADO_ACTIVO,
+            ]),
             'categorias' => $this->categorias(),
         ]);
     }
@@ -90,17 +87,20 @@ class RepuestoAdminController extends Controller
     }
 
     /**
-     * Ajuste rapido de existencias desde el listado.
+     * Ajuste rapido del saldo operativo desde el listado.
+     *
+     * Escribe `existencia` y nunca `stock`: stock lo manda el ERP y se
+     * sobrescribe en la siguiente sincronizacion.
      */
     public function ajustarStock(Request $request, Repuesto $repuesto): RedirectResponse
     {
         $datos = $request->validate([
-            'cantidad_disponible' => ['required', 'integer', 'min:0', 'max:999999'],
-        ], [], ['cantidad_disponible' => 'cantidad disponible']);
+            'existencia' => ['required', 'numeric', 'min:0', 'max:999999999'],
+        ], [], ['existencia' => 'existencia']);
 
         $repuesto->update($datos);
 
-        return back()->with('exito', "Existencias de {$repuesto->codigo} actualizadas a {$datos['cantidad_disponible']}.");
+        return back()->with('exito', "Existencias de {$repuesto->codigo} actualizadas a {$repuesto->existencia}.");
     }
 
     /**
@@ -108,7 +108,7 @@ class RepuestoAdminController extends Controller
      */
     public function destroy(Repuesto $repuesto): RedirectResponse
     {
-        $repuesto->update(['activo' => false]);
+        $repuesto->update(['estado' => Repuesto::ESTADO_INACTIVO]);
 
         return back()->with('exito', "Repuesto {$repuesto->codigo} desactivado; ya no aparece en el catalogo publico.");
     }
@@ -116,23 +116,50 @@ class RepuestoAdminController extends Controller
     /**
      * Guarda la imagen en public/img con el codigo del repuesto como nombre.
      */
-    private function guardarImagen(?UploadedFile $imagen, string $codigo): ?string
+    private function guardarImagen(?UploadedFile $imagen, int|string $codigo): ?string
     {
         if (! $imagen) {
             return null;
         }
 
-        $nombre = Str::slug($codigo).'-'.now()->format('YmdHis').'.'.$imagen->getClientOriginalExtension();
+        $nombre = Str::slug((string) $codigo).'-'.now()->format('YmdHis').'.'.$imagen->getClientOriginalExtension();
         $imagen->move(public_path('img'), $nombre);
 
         return $nombre;
     }
 
     /**
+     * Los cuatro conteos del encabezado en una sola pasada.
+     *
+     * Con 28.490 filas, cuatro COUNT separados eran cuatro recorridos de la
+     * tabla en cada carga del listado.
+     *
+     * @return array<string, int>
+     */
+    private function totales(): array
+    {
+        $fila = Repuesto::query()
+            ->selectRaw('count(*) as todos')
+            ->selectRaw('sum(case when existencia <= 0 then 1 else 0 end) as agotados')
+            ->selectRaw('sum(case when existencia > 0 and existencia <= stock_minimo then 1 else 0 end) as bajos')
+            ->selectRaw('sum(case when estado = ? then 1 else 0 end) as inactivos', [Repuesto::ESTADO_INACTIVO])
+            ->first();
+
+        return [
+            'todos' => (int) $fila->todos,
+            'agotados' => (int) $fila->agotados,
+            'bajos' => (int) $fila->bajos,
+            'inactivos' => (int) $fila->inactivos,
+        ];
+    }
+
+    /**
+     * Grupos del ERP, que reemplazaron a la columna de texto `categoria`.
+     *
      * @return Collection<int, string>
      */
-    private function categorias()
+    private function categorias(): Collection
     {
-        return Repuesto::whereNotNull('categoria')->distinct()->orderBy('categoria')->pluck('categoria');
+        return Repuesto::whereNotNull('desc_cat_1')->distinct()->orderBy('desc_cat_1')->pluck('desc_cat_1');
     }
 }

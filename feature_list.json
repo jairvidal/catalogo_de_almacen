@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.2.2",
+  "version": "1.3.5",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -17,6 +17,40 @@
           "acceptance": [
             "Debe permitir agregar, modificar, anular un rol",
             "Debe estar relacionado con el usuario de la table users"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "ADM-02",
+          "name": "Adicionar modulo CRUD Parametros que permita gestionar la configuracion del sistema.",
+          "acceptance": [
+            "Tabla tbl_parametro con col_nombre unico, col_valor, col_estado, col_descripcion y col_sistema",
+            "col_estado es texto con los valores 'activo' e 'inactivo', acotado con un CHECK en la base",
+            "Debe permitir agregar, modificar y anular un parametro; anular pone col_estado = 'inactivo'",
+            "Los parametros del sistema no se renombran, no se anulan y no cambian de estado",
+            "Solo el administrador entra al modulo (middleware es.admin)",
+            "Parametro::valor() es el unico lector y solo devuelve el valor si el parametro esta activo",
+            "El valor se guarda literal: no se le recortan los espacios del inicio ni del final",
+            "El valor de codigo_api no aparece en el HTML del listado ni del formulario"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "ADM-03",
+          "name": "Adicionar el parametro inv.actualizar con modo automatico o manual y un boton Actualizar que dispare la sincronizacion con el ERP.",
+          "acceptance": [
+            "El parametro inv.actualizar se edita con botones de radio y solo admite 'automatico' y 'manual'",
+            "El valor fuera de la lista cerrada se rechaza en el servidor, no solo en el HTML",
+            "En modo automatico la tarea programada sigue disparando la sincronizacion cada tiempo.actualizar minutos",
+            "En modo manual el programador no dispara nunca y el stock solo se actualiza con el boton",
+            "El boton Actualizar aparece en /admin/parametros unicamente cuando el modo es manual",
+            "La ruta del boton exige es.admin: el almacenista recibe 403",
+            "La orquestacion de la sincronizacion vive en un servicio que comparten el comando y el boton",
+            "La sincronizacion manual escribe unicamente stock y nunca cantidad_disponible",
+            "El boton avisa mientras corre (spinner y toast) y al terminar muestra el resumen",
+            "El panel muestra la ultima corrida, la proxima y si hay una sincronizacion en curso",
+            "Un candado de cache impide que el boton y el programador lancen dos corridas a la vez",
+            "Ni codigo_api ni el token aparecen en la respuesta JSON, en el HTML ni en el log"
           ],
           "status": "done"
         }
@@ -78,6 +112,58 @@
             "Toda repuestos.foto no nula debe tener archivo fisico en public/img"
           ],
           "status": "done"
+        },
+        {
+          "id": "CAT-05",
+          "name": "Agregar a la tabla repuestos los campos stock, abastecimiento, tamano, subgrupo, tiene_plano y plano_url.",
+          "acceptance": [
+            "Las columnas nuevas van sin prefijo col_, porque repuestos es anterior a la convencion tbl_/col_",
+            "Las 591 filas existentes no se pueden romper: numericas y banderas NOT NULL con default 0, las de texto nullable",
+            "abastecimiento y tiene_plano son tinyint acotados a 0 y 1 con un CHECK en la base",
+            "El down() debe revertir por completo, soltando los CHECK antes de las columnas",
+            "El modelo Repuesto expone los seis campos en fillable y castea stock a integer y las dos banderas a boolean",
+            "stock no reemplaza a cantidad_disponible: el flujo de pedidos sigue descontando de cantidad_disponible"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-06",
+          "name": "Sincronizar repuestos.stock con la API de inventario de Sidocsa, configurada por parametros y programada periodicamente.",
+          "acceptance": [
+            "El token se cachea 4 minutos porque vence a los 5, y un 401 lo renueva y reintenta una sola vez",
+            "La consulta pagina desde page=1 y corta con la pagina vacia o incompleta, con un tope duro de paginas",
+            "El codigo del repuesto se lee del campo item de la respuesta, con trim, y de ningun otro",
+            "El cruce es numerico: intval(repuestos.codigo) contra intval(item), para que 0003729 cruce con 3729",
+            "El indice se arma en memoria; el UPDATE va por la columna codigo con su valor literal, sin CAST en la consulta",
+            "Dos codigos del catalogo que colapsen al mismo entero quedan los dos fuera del cruce, con aviso en el log",
+            "Los codigos no numericos, de la API o del catalogo, se saltan y se cuentan aparte; nunca pasan por intval",
+            "Se actualiza en lotes por el limite de 2100 parametros de SQL Server",
+            "Solo se actualizan repuestos existentes; los codigos sin correspondencia se cuentan y se reportan",
+            "La sincronizacion escribe unicamente stock y nunca cantidad_disponible",
+            "El comando admite --simular y un fallo de red o de API no sale como stack trace",
+            "La tarea corre cada minuto pero solo se dispara cuando pasaron los minutos de tiempo.actualizar",
+            "Ni codigo_api ni el token aparecen en logs, salida ni mensajes de error",
+            "La verificacion del certificado TLS queda activada"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-07",
+          "name": "Actualizar el cuerpo de la consulta a la API de inventario: criterio_2 como arreglo, criterio nuevo y la bodega real.",
+          "acceptance": [
+            "criterio_2 (GRUPO) viaja como arreglo JSON y ya no como cadena",
+            "criterio (SUBGRUPO) viaja siempre, aunque sea el arreglo vacio",
+            "El valor de api.criterio y api.criterio_2 es una lista separada por comas",
+            "Al partir la lista no se le hace trim a cada elemento; solo se descartan los vacios",
+            "El formulario de /admin/parametros dice como escribir un parametro de lista",
+            "api.criterio se siembra vacio y con col_sistema = true, como sus hermanos",
+            "El valor sembrado de api.id_bod es la bodega real P2ALM",
+            "El seeder sigue refrescando solo la descripcion: no pisa el valor del administrador",
+            "El cuerpo se arma en un solo sitio: consola y boton del panel mandan la misma peticion",
+            "cant, cant_page, page, existencias y tipo_inv no cambian",
+            "Ni codigo_api ni el token aparecen en el cuerpo, en el log ni en la salida"
+          ],
+          "status": "done"
         }
       ]
     },
@@ -94,6 +180,21 @@
             "Los neutros deben ser una sola familia calida, sin el slate azulado anterior",
             "El rojo de marca debe distinguirse del rojo de peligro por forma, no solo por tono",
             "El texto debe cumplir contraste AA sobre las superficies claras"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "UI-02",
+          "name": "Mostrar el logo de la empresa como marca de agua en todas las paginas de la aplicacion",
+          "acceptance": [
+            "Aparece en el layout publico, en el del panel y en el login del admin, que no extiende ningun layout",
+            "Se ve de verdad en todas las paginas, tambien en las que llenan la ventana de tarjetas",
+            "Va sobre el contenido, centrada, fija a la ventana y con opacidad baja, sin estorbar la lectura",
+            "Queda por debajo de navbar, dropdown, offcanvas, modal y toasts",
+            "No intercepta clics ni saca barra de scroll horizontal en movil",
+            "El estilo vive en app.css con tokens --ca-*, sin hex ni estilos sueltos en las vistas",
+            "La URL de la imagen se genera con asset() para que funcione tambien bajo subcarpeta",
+            "No se imprime: queda oculta en @media print"
           ],
           "status": "done"
         }

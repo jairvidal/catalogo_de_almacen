@@ -13,6 +13,8 @@
 </head>
 <body>
 
+@include('partials.marca-agua')
+
 <div class="container-fluid">
     <div class="row">
 

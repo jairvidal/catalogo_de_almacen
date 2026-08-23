@@ -110,7 +110,7 @@
 
                             @php
                                 $totalRepuestos = $categoria->repuestos()->count();
-                                $activosRepuestos = $categoria->repuestos()->where('activo', true)->count();
+                                $activosRepuestos = $categoria->repuestos()->where('estado', \App\Models\Repuesto::ESTADO_ACTIVO)->count();
                             @endphp
 
                             @if ($totalRepuestos === 0)

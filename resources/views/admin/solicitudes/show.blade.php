@@ -127,7 +127,7 @@
                             <tbody>
                             @foreach ($solicitud->items as $item)
                                 @php
-                                    $stock = $item->repuesto?->cantidad_disponible ?? 0;
+                                    $stock = $item->repuesto?->existencia ?? 0;
                                     $alcanza = $stock >= $item->cantidad_solicitada;
                                 @endphp
                                 <tr class="{{ $alcanza || ! $puedeElaborar ? '' : 'table-warning' }}">

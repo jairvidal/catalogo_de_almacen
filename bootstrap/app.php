@@ -18,6 +18,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Los invitados que intenten entrar al panel van al login del almacen.
         $middleware->redirectGuestsTo(fn () => route('admin.login'));
+
+        // El valor de un parametro se guarda literal. Laravel recorta por
+        // defecto toda la entrada, y eso borraba en silencio el espacio final
+        // de api.criterio_2 cada vez que se guardaba el formulario, cambiando
+        // la consulta que se le manda a la API de inventario sin que nadie lo
+        // viera. La excepcion es solo para ese campo.
+        $middleware->trimStrings(except: ['col_valor']);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

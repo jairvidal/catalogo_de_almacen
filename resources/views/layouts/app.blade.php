@@ -13,6 +13,8 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
 
+@include('partials.marca-agua')
+
 @php
     $carrito = app(\App\Services\Carrito::class);
     $referenciasCarrito = $carrito->cantidadReferencias();

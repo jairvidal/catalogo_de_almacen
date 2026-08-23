@@ -13,6 +13,8 @@
 <body class="d-flex align-items-center justify-content-center min-vh-100 py-4"
       style="background:var(--ca-superficie-oscura)">
 
+@include('partials.marca-agua')
+
 <div class="w-100" style="max-width:26rem">
 
     <div class="text-center mb-4">

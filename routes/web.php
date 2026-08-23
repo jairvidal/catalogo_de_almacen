@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\CategoriaAdminController;
+use App\Http\Controllers\Admin\ParametroAdminController;
 use App\Http\Controllers\Admin\RepuestoAdminController;
 use App\Http\Controllers\Admin\RolAdminController;
 use App\Http\Controllers\Admin\SolicitudAdminController;
@@ -95,6 +96,23 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::get('/{rol}/editar', 'edit')->name('edit');
                 Route::put('/{rol}', 'update')->name('update');
                 Route::delete('/{rol}', 'destroy')->name('destroy');
+            });
+
+        // Los parametros configuran la integracion con el ERP y llevan una
+        // credencial: solo el admin los ve.
+        Route::middleware('es.admin')->prefix('parametros')->name('parametros.')
+            ->controller(ParametroAdminController::class)->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::get('/nuevo', 'create')->name('create');
+                Route::post('/', 'store')->name('store');
+                // Boton "Actualizar" del modo manual de inv.actualizar. Va
+                // antes del recurso por nombre para que no la capture
+                // /{parametro}, y hereda el es.admin del grupo: el almacenista
+                // no dispara la sincronizacion con el ERP.
+                Route::post('/sincronizar-stock', 'sincronizarStock')->name('sincronizar');
+                Route::get('/{parametro}/editar', 'edit')->name('edit');
+                Route::put('/{parametro}', 'update')->name('update');
+                Route::delete('/{parametro}', 'destroy')->name('destroy');
             });
     });
 });

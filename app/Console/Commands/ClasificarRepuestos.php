@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 
 /**
- * Asigna repuestos.categoria_id leyendo el color del marco de la foto.
+ * Asigna repuestos.id_categoria leyendo el color del marco de la foto.
  *
  * En este almacen la categoria de un repuesto es el color del marco impreso en
  * el borde de su foto; el nombre no dice nada (cada color mezcla filtros,
@@ -52,7 +52,7 @@ class ClasificarRepuestos extends Command
         $simular = (bool) $this->option('simular');
 
         $consulta = Repuesto::query()
-            ->when(! $forzar, fn ($q) => $q->whereNull('categoria_id'));
+            ->when(! $forzar, fn ($q) => $q->whereNull('id_categoria'));
 
         $pendientes = (clone $consulta)->count();
 
@@ -114,7 +114,7 @@ class ClasificarRepuestos extends Command
         if (! $simular) {
             foreach ($porSlug as $slug => $ids) {
                 foreach (array_chunk($ids, self::LOTE) as $lote) {
-                    Repuesto::whereIn('id', $lote)->update(['categoria_id' => $categorias->get($slug)]);
+                    Repuesto::whereIn('id', $lote)->update(['id_categoria' => $categorias->get($slug)]);
                 }
 
                 $asignados += count($ids);
@@ -164,7 +164,7 @@ class ClasificarRepuestos extends Command
             $enEstaCorrida = count($porSlug[$slug] ?? []);
             // El total del catalogo se lee de la base para poder cotejar el
             // conteo real, no solo lo que toco esta corrida.
-            $totalCatalogo = $simular ? '-' : Repuesto::where('categoria_id', $id)->count();
+            $totalCatalogo = $simular ? '-' : Repuesto::where('id_categoria', $id)->count();
 
             $filas[] = [$nombres[$id] ?? $slug, $slug, $enEstaCorrida, $totalCatalogo];
         }

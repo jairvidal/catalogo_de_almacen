@@ -142,7 +142,7 @@ class SolicitudAdminController extends Controller
         if ($solicitud->estado === Solicitud::ESTADO_LISTO) {
             foreach ($solicitud->items as $item) {
                 if ($item->cantidad_entregada > 0) {
-                    Repuesto::whereKey($item->repuesto_id)->increment('cantidad_disponible', $item->cantidad_entregada);
+                    Repuesto::whereKey($item->repuesto_id)->increment('existencia', $item->cantidad_entregada);
                     $item->update(['cantidad_entregada' => 0]);
                 }
             }

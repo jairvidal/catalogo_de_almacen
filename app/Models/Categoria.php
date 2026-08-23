@@ -38,7 +38,7 @@ class Categoria extends Model
 
     public function repuestos(): HasMany
     {
-        return $this->hasMany(Repuesto::class, 'categoria_id');
+        return $this->hasMany(Repuesto::class, 'id_categoria');
     }
 
     /**

@@ -27,7 +27,7 @@ class CategoriaAdminController extends Controller
             ->when($filtro === 'anuladas', fn ($q) => $q->where('col_activo', false))
             ->withCount([
                 'repuestos',
-                'repuestos as repuestos_activos_count' => fn ($q) => $q->where('activo', true),
+                'repuestos as repuestos_activos_count' => fn ($q) => $q->where('estado', Repuesto::ESTADO_ACTIVO),
             ])
             ->orderBy('col_nombre')
             ->paginate(20)
@@ -37,7 +37,7 @@ class CategoriaAdminController extends Controller
             'categorias' => $categorias,
             'termino' => $termino,
             'filtro' => $filtro,
-            'sinCategoria' => Repuesto::whereNull('categoria_id')->where('activo', true)->count(),
+            'sinCategoria' => Repuesto::whereNull('id_categoria')->where('estado', Repuesto::ESTADO_ACTIVO)->count(),
             'totales' => [
                 'todas' => Categoria::count(),
                 'activas' => Categoria::where('col_activo', true)->count(),
@@ -81,7 +81,7 @@ class CategoriaAdminController extends Controller
     }
 
     /**
-     * Anular no borra: los repuestos apuntan al registro por categoria_id.
+     * Anular no borra: los repuestos apuntan al registro por id_categoria.
      */
     public function destroy(Categoria $categoria): RedirectResponse
     {

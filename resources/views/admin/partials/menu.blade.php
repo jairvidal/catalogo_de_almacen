@@ -47,6 +47,13 @@
                 <i class="bi bi-person-badge me-2"></i>Roles
             </a>
         </li>
+
+        <li class="nav-item">
+            <a class="nav-link {{ request()->routeIs('admin.parametros.*') ? 'active' : '' }}"
+               href="{{ route('admin.parametros.index') }}">
+                <i class="bi bi-sliders me-2"></i>Parametros
+            </a>
+        </li>
     @endif
 
     <li class="nav-item mt-2">

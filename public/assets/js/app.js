@@ -119,6 +119,64 @@
         }
     });
 
+    /* --- Boton "Actualizar" del inventario (modo manual) ----------------- */
+
+    /* La sincronizacion corre dentro de la peticion (QUEUE_CONNECTION=sync) y
+       puede tardar: el boton se bloquea con un spinner y se avisa al empezar,
+       para que nadie piense que no paso nada y vuelva a apretar. */
+    document.addEventListener('submit', async (evento) => {
+        const formulario = evento.target.closest('form[data-sincronizar-stock]');
+
+        if (!formulario) {
+            return;
+        }
+
+        evento.preventDefault();
+
+        const boton = formulario.querySelector('button[type="submit"]');
+        const textoOriginal = boton?.innerHTML;
+
+        if (boton) {
+            boton.disabled = true;
+            boton.innerHTML =
+                '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Actualizando...';
+        }
+
+        mostrarAviso('Actualizando el stock desde el ERP. Puede tardar un momento...', 'success');
+
+        try {
+            const respuesta = await fetch(formulario.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+                body: new FormData(formulario),
+            });
+
+            const datos = await respuesta.json().catch(() => ({}));
+
+            if (respuesta.ok && datos.ok) {
+                mostrarAviso(datos.mensaje, 'success');
+
+                /* La tarjeta de estado (ultima corrida, proxima) la arma el
+                   servidor: se recarga cuando el aviso ya se alcanzo a leer. */
+                setTimeout(() => window.location.reload(), 4200);
+                return;
+            }
+
+            mostrarAviso(datos.mensaje ?? 'No se pudo actualizar el stock.', 'danger');
+        } catch (error) {
+            mostrarAviso('No se pudo conectar con el servidor. Intente de nuevo.', 'danger');
+        }
+
+        if (boton) {
+            boton.disabled = false;
+            boton.innerHTML = textoOriginal;
+        }
+    });
+
     /* --- Confirmaciones antes de acciones destructivas ------------------- */
 
     document.addEventListener('submit', (evento) => {

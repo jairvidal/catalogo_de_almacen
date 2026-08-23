@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             UsuarioSeeder::class,
             CategoriaSeeder::class,
             RepuestoSeeder::class,
+            ParametroSeeder::class,
         ]);
     }
 }

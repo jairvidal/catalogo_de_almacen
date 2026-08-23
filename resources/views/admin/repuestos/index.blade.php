@@ -78,7 +78,7 @@
                     </thead>
                     <tbody>
                     @foreach ($repuestos as $repuesto)
-                        <tr class="{{ $repuesto->activo ? '' : 'opacity-50' }}">
+                        <tr class="{{ $repuesto->estaActivo() ? '' : 'opacity-50' }}">
                             <td class="ps-3">
                                 <img src="{{ $repuesto->foto_url }}" alt="{{ $repuesto->nombre }}" class="miniatura">
                             </td>
@@ -91,24 +91,24 @@
                                 <div class="fw-semibold">{{ $repuesto->nombre }}</div>
                                 <div class="small text-secondary">
                                     {{ $repuesto->ubicacion ?? 'Sin ubicacion' }}
-                                    @unless ($repuesto->activo)
+                                    @unless ($repuesto->estaActivo())
                                         <span class="badge text-bg-secondary ms-1">Inactivo</span>
                                     @endunless
                                 </div>
                             </td>
 
-                            <td class="small text-secondary">{{ $repuesto->categoria ?? '—' }}</td>
+                            <td class="small text-secondary">{{ $repuesto->desc_cat_1 ?? '—' }}</td>
 
                             <td>
                                 <form method="POST" action="{{ route('admin.repuestos.stock', $repuesto) }}"
                                       class="d-flex gap-1 justify-content-center">
                                     @csrf
                                     @method('PATCH')
-                                    <input type="number" name="cantidad_disponible"
+                                    <input type="number" name="existencia"
                                            class="form-control form-control-sm text-center
                                                   {{ $repuesto->sin_stock ? 'border-danger' : ($repuesto->stock_bajo ? 'border-warning' : '') }}"
                                            style="width:5.5rem"
-                                           value="{{ $repuesto->cantidad_disponible }}" min="0" required>
+                                           value="{{ $repuesto->existencia }}" min="0" step="0.001" required>
                                     <button type="submit" class="btn btn-sm btn-outline-marca" title="Guardar existencias">
                                         <i class="bi bi-check-lg"></i>
                                     </button>
@@ -128,7 +128,7 @@
                                        class="btn btn-outline-secondary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    @if ($repuesto->activo)
+                                    @if ($repuesto->estaActivo())
                                         <form method="POST" action="{{ route('admin.repuestos.destroy', $repuesto) }}"
                                               data-confirmar="Desactivar {{ $repuesto->codigo }}? Dejara de aparecer en el catalogo publico.">
                                             @csrf

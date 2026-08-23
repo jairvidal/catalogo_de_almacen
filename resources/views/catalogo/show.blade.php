@@ -13,10 +13,10 @@
                        class="text-decoration-none">{{ $repuesto->categoriaAsignada->col_nombre }}</a>
                 </li>
             @endif
-            @if ($repuesto->categoria)
+            @if ($repuesto->desc_cat_1)
                 <li class="breadcrumb-item">
-                    <a href="{{ route('catalogo.index', ['categoria' => $repuesto->categoria]) }}"
-                       class="text-decoration-none">{{ $repuesto->categoria }}</a>
+                    <a href="{{ route('catalogo.index', ['categoria' => $repuesto->desc_cat_1]) }}"
+                       class="text-decoration-none">{{ $repuesto->desc_cat_1 }}</a>
                 </li>
             @endif
             <li class="breadcrumb-item active" aria-current="page">{{ $repuesto->codigo }}</li>
@@ -44,15 +44,20 @@
                                 {{ $repuesto->categoriaAsignada->col_nombre }}
                             </a>
                         @endif
-                        @if ($repuesto->categoria)
-                            <span class="badge text-bg-light border text-secondary fw-normal">{{ $repuesto->categoria }}</span>
+                        @if ($repuesto->desc_cat_1)
+                            <span class="badge text-bg-light border text-secondary fw-normal">{{ $repuesto->desc_cat_1 }}</span>
+                        @endif
+                        @if ($repuesto->desc_cat_2)
+                            <span class="badge text-bg-light border text-secondary fw-normal">{{ $repuesto->desc_cat_2 }}</span>
                         @endif
                     </div>
 
                     <h1 class="h3 mb-3">{{ $repuesto->nombre }}</h1>
 
-                    @if ($repuesto->descripcion)
-                        <p class="text-secondary">{{ $repuesto->descripcion }}</p>
+                    @if ($repuesto->cod_referencia)
+                        <p class="text-secondary small mb-3">
+                            Referencia: <span class="font-monospace">{{ $repuesto->cod_referencia }}</span>
+                        </p>
                     @endif
 
                     <dl class="row small mb-4">
@@ -83,7 +88,7 @@
                             @if ($repuesto->sin_stock)
                                 <span class="text-danger fw-semibold">Sin existencias</span>
                             @else
-                                <span class="fw-semibold">{{ $repuesto->cantidad_disponible }}</span>
+                                <span class="fw-semibold">{{ $repuesto->existencia }}</span>
                                 {{ $repuesto->unidad_medida }}
                                 @if ($repuesto->stock_bajo)
                                     <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-normal ms-1">
@@ -123,7 +128,7 @@
                                         <i class="bi bi-dash"></i>
                                     </button>
                                     <input type="number" class="form-control text-center" id="cantidad" name="cantidad"
-                                           value="1" min="1" max="{{ $repuesto->cantidad_disponible }}" required>
+                                           value="1" min="1" max="{{ $repuesto->existencia }}" required>
                                     <button class="btn btn-outline-secondary" type="button"
                                             data-paso="1" data-objetivo="cantidad" aria-label="Aumentar">
                                         <i class="bi bi-plus"></i>
@@ -145,7 +150,7 @@
     </div>
 
     @if ($relacionados->isNotEmpty())
-        <h2 class="h5 mt-5 mb-3">Otros repuestos de {{ $repuesto->categoria }}</h2>
+        <h2 class="h5 mt-5 mb-3">Otros repuestos de {{ $repuesto->desc_cat_2 }}</h2>
 
         <div class="row row-cols-2 row-cols-md-4 g-3">
             @foreach ($relacionados as $otro)

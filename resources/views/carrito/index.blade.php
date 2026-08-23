@@ -56,7 +56,7 @@
                                             &middot; Id {{ $linea->id }}
                                         </span>
                                         <div class="small text-secondary mt-1">
-                                            Disponibles: {{ $linea->cantidad_disponible }} {{ $linea->unidad_medida }}
+                                            Disponibles: {{ $linea->existencia }} {{ $linea->unidad_medida }}
                                         </div>
                                     </td>
 
@@ -74,7 +74,7 @@
                                                 <input type="number" class="form-control text-center"
                                                        id="cant-{{ $linea->id }}" name="cantidad"
                                                        value="{{ $linea->cantidad_pedida }}"
-                                                       min="1" max="{{ $linea->cantidad_disponible }}" required>
+                                                       min="1" max="{{ $linea->existencia }}" required>
                                                 <button class="btn btn-outline-secondary" type="button"
                                                         data-paso="1" data-objetivo="cant-{{ $linea->id }}"
                                                         aria-label="Aumentar">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Repuesto;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,18 +21,22 @@ class RepuestoRequest extends FormRequest
         $repuestoId = $this->route('repuesto')?->id;
 
         return [
+            // codigo es entero desde que la tabla la trae el ERP. La unicidad la
+            // respalda el indice unico de repuestos.codigo.
             'codigo' => [
-                'required', 'string', 'max:40',
+                'required', 'integer', 'min:1',
                 Rule::unique('repuestos', 'codigo')->ignore($repuestoId),
             ],
-            'nombre' => ['required', 'string', 'max:200'],
-            'descripcion' => ['nullable', 'string', 'max:500'],
-            'categoria' => ['nullable', 'string', 'max:100'],
-            'ubicacion' => ['nullable', 'string', 'max:100'],
-            'unidad_medida' => ['required', 'string', 'max:20'],
-            'cantidad_disponible' => ['required', 'integer', 'min:0', 'max:999999'],
-            'stock_minimo' => ['required', 'integer', 'min:0', 'max:999999'],
-            'activo' => ['nullable', 'boolean'],
+            'cod_referencia' => ['nullable', 'string', 'max:50'],
+            'nombre' => ['required', 'string', 'max:300'],
+            'ubicacion' => ['nullable', 'string', 'max:30'],
+            'unidad_medida' => ['required', 'string', 'max:10'],
+            'desc_cat_1' => ['nullable', 'string', 'max:50'],
+            'desc_cat_2' => ['nullable', 'string', 'max:50'],
+            // Saldo operativo. `stock` no se edita a mano: lo escribe el ERP.
+            'existencia' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'stock_minimo' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'estado' => ['required', Rule::in([Repuesto::ESTADO_ACTIVO, Repuesto::ESTADO_INACTIVO])],
             'imagen' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ];
     }
@@ -42,9 +47,12 @@ class RepuestoRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'cantidad_disponible' => 'cantidad disponible',
+            'cod_referencia' => 'referencia',
+            'existencia' => 'existencia',
             'stock_minimo' => 'stock minimo',
             'unidad_medida' => 'unidad de medida',
+            'desc_cat_1' => 'grupo',
+            'desc_cat_2' => 'subgrupo',
         ];
     }
 
@@ -52,7 +60,9 @@ class RepuestoRequest extends FormRequest
     {
         $this->merge([
             'codigo' => trim((string) $this->input('codigo')),
-            'activo' => $this->boolean('activo'),
+            // La casilla del formulario no viaja cuando esta desmarcada, asi que
+            // su ausencia significa inactivo.
+            'estado' => $this->boolean('estado') ? Repuesto::ESTADO_ACTIVO : Repuesto::ESTADO_INACTIVO,
         ]);
     }
 }

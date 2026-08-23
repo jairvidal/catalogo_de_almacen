@@ -112,6 +112,15 @@
 
     /* --- Filete de senalizacion (el elemento distintivo) ------------------ */
     --ca-filete: 3px;
+
+    /* --- Marca de agua ---------------------------------------------------- */
+    /* La marca va ENCIMA del contenido (ver .marca-agua), asi que la opacidad
+       es el unico freno: .10 se lee como sello sobre el papel sin estorbar el
+       texto que queda debajo; por encima de .14 el rojo del logo empieza a
+       competir con el. El ancho se topa contra la ventana para que en movil
+       no desborde, y contra 520px para no ampliar de mas el PNG (238px). */
+    --ca-marca-agua-opacidad: .10;
+    --ca-marca-agua-ancho: min(70vw, 520px);
 }
 
 /* --------------------------------------------------------------------------
@@ -198,6 +207,42 @@ hr {
 
 .text-secondary { color: var(--ca-texto-secundario) !important; }
 .text-muted { color: var(--ca-texto-terciario) !important; }
+
+/* --------------------------------------------------------------------------
+   Marca de agua (partials/marca-agua.blade.php)
+
+   El logo va fijo al centro de la ventana y ENCIMA del contenido, con muy
+   poca opacidad. No va detras: con z-index negativo solo se veria en los
+   huecos entre tarjetas, porque las superficies (--ca-superficie) son blancas
+   y opacas, y en el catalogo cubren casi toda la ventana. Ahi la marca de
+   agua era invisible en la practica.
+
+   El <img> se incluye como hijo directo de <body> a proposito: dentro de un
+   contenedor con transform, opacidad o filtro ese contenedor le crearia un
+   contexto de apilamiento y la marca quedaria atrapada en el, por debajo de
+   lo que viniera despues.
+
+   990 la deja sobre todo el contenido normal pero por debajo de las capas de
+   Bootstrap que si deben taparla: navbar sticky (1020), dropdown (1000),
+   offcanvas (1045), modal (1055) y la zona de toasts (1090, mas abajo).
+
+   pointer-events:none para que no robe un solo clic, y el ancho topado
+   contra la ventana para que no saque barra de scroll horizontal en movil.
+   -------------------------------------------------------------------------- */
+
+.marca-agua {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 990;
+    width: var(--ca-marca-agua-ancho);
+    max-width: calc(100vw - 2rem);
+    height: auto;
+    opacity: var(--ca-marca-agua-opacidad);
+    pointer-events: none;
+    user-select: none;
+}
 
 /* --------------------------------------------------------------------------
    Marca: relleno solido, superficie pequena
@@ -811,6 +856,7 @@ a:focus-visible {
     .navbar-app,
     .panel-sidebar,
     .no-imprimir,
+    .marca-agua,
     footer {
         display: none !important;
     }

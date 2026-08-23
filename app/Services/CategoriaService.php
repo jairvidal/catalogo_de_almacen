@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Categoria;
+use App\Models\Repuesto;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -47,7 +48,7 @@ class CategoriaService
 
     /**
      * Anula una categoria (col_activo = false). No se borra: los repuestos
-     * apuntan al registro por repuestos.categoria_id.
+     * apuntan al registro por repuestos.id_categoria.
      *
      * @throws ValidationException si tiene repuestos activos asociados.
      */
@@ -58,7 +59,7 @@ class CategoriaService
             // categoria entre la verificacion y la anulacion.
             $actual = Categoria::query()->lockForUpdate()->findOrFail($categoria->id);
 
-            $repuestosActivos = $actual->repuestos()->where('activo', true)->count();
+            $repuestosActivos = $actual->repuestos()->where('estado', Repuesto::ESTADO_ACTIVO)->count();
 
             if ($repuestosActivos > 0) {
                 throw ValidationException::withMessages([

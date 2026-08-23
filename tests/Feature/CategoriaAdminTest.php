@@ -62,16 +62,25 @@ class CategoriaAdminTest extends TestCase
         return $categoria;
     }
 
+    /**
+     * Codigo de 9 digitos: repuestos.codigo es entero con indice unico desde que
+     * la tabla la trae el ERP, y el catalogo real no llega a ese rango.
+     */
+    private function codigoDePrueba(): int
+    {
+        return random_int(950000000, 999999999);
+    }
+
     private function nuevoRepuesto(Categoria $categoria, bool $activo = true): Repuesto
     {
         return Repuesto::create([
-            'codigo' => 'TEST'.substr(uniqid(), -10),
+            'codigo' => $this->codigoDePrueba(),
             'nombre' => 'Repuesto de prueba',
-            'categoria_id' => $categoria->id,
+            'id_categoria' => $categoria->id,
             'unidad_medida' => 'UND',
-            'cantidad_disponible' => 5,
+            'existencia' => 5,
             'stock_minimo' => 1,
-            'activo' => $activo,
+            'estado' => $activo ? Repuesto::ESTADO_ACTIVO : Repuesto::ESTADO_INACTIVO,
         ]);
     }
 
@@ -245,12 +254,12 @@ class CategoriaAdminTest extends TestCase
         $categoria = $this->nuevaCategoria();
         $delFiltro = $this->nuevoRepuesto($categoria);
         $otro = Repuesto::create([
-            'codigo' => 'TEST'.substr(uniqid(), -10),
+            'codigo' => $this->codigoDePrueba(),
             'nombre' => 'Repuesto de otra categoria',
             'unidad_medida' => 'UND',
-            'cantidad_disponible' => 5,
+            'existencia' => 5,
             'stock_minimo' => 1,
-            'activo' => true,
+            'estado' => Repuesto::ESTADO_ACTIVO,
         ]);
 
         $this->get(route('catalogo.index', ['categoria_id' => $categoria->id]))
@@ -271,17 +280,28 @@ class CategoriaAdminTest extends TestCase
             ->assertSee('#00A848', escape: false);
     }
 
-    public function test_la_relacion_del_repuesto_no_la_opaca_la_columna_de_texto(): void
+    /**
+     * tbl_categoria (el color del marco de la foto) y la taxonomia del ERP
+     * (desc_cat_1 = GRUPO, desc_cat_2 = SUBGRUPO) son DOS COSAS DISTINTAS y no
+     * se mezclan: un repuesto puede tener grupo del ERP y ninguna categoria de
+     * color, o al reves. La relacion se llama categoriaAsignada() y llega por
+     * id_categoria.
+     */
+    public function test_la_categoria_de_color_es_independiente_de_la_taxonomia_del_erp(): void
     {
         $categoria = $this->nuevaCategoria();
         $repuesto = $this->nuevoRepuesto($categoria);
-        $repuesto->update(['categoria' => 'Texto historico']);
+        $repuesto->update(['desc_cat_1' => 'ELECTRICO', 'desc_cat_2' => 'CABLES']);
 
         $repuesto->refresh();
 
-        // categoria sigue siendo el texto; el modelo llega por categoriaAsignada.
-        $this->assertSame('Texto historico', $repuesto->categoria);
+        $this->assertSame('ELECTRICO', $repuesto->desc_cat_1);
+        $this->assertSame('CABLES', $repuesto->desc_cat_2);
         $this->assertInstanceOf(Categoria::class, $repuesto->categoriaAsignada);
         $this->assertSame($categoria->id, $repuesto->categoriaAsignada->id);
+
+        // Cambiar el grupo del ERP no toca la categoria de color.
+        $repuesto->update(['desc_cat_1' => 'FERRETERIA']);
+        $this->assertSame($categoria->id, $repuesto->refresh()->id_categoria);
     }
 }

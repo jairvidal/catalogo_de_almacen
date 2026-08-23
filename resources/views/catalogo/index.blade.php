@@ -151,12 +151,12 @@
                                 @elseif ($repuesto->stock_bajo)
                                     <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-normal">
                                         <i class="bi bi-exclamation-triangle me-1"></i>
-                                        Ultimas {{ $repuesto->cantidad_disponible }} {{ $repuesto->unidad_medida }}
+                                        Ultimas {{ $repuesto->existencia }} {{ $repuesto->unidad_medida }}
                                     </span>
                                 @else
                                     <span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle fw-normal">
                                         <i class="bi bi-check-circle me-1"></i>
-                                        {{ $repuesto->cantidad_disponible }} {{ $repuesto->unidad_medida }} disponibles
+                                        {{ $repuesto->existencia }} {{ $repuesto->unidad_medida }} disponibles
                                     </span>
                                 @endif
                             </div>

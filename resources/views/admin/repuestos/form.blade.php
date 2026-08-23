@@ -30,106 +30,129 @@
 
                             <div class="col-sm-4">
                                 <label for="codigo" class="form-label">Codigo <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control font-monospace @error('codigo') is-invalid @enderror"
+                                <input type="number" class="form-control font-monospace @error('codigo') is-invalid @enderror"
                                        id="codigo" name="codigo" value="{{ old('codigo', $repuesto->codigo) }}"
-                                       maxlength="40" required>
+                                       min="1" step="1" required>
+                                <div class="form-text">Codigo del item en el ERP.</div>
                                 @error('codigo')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-sm-8">
-                                <label for="nombre" class="form-label">Nombre <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control @error('nombre') is-invalid @enderror"
-                                       id="nombre" name="nombre" value="{{ old('nombre', $repuesto->nombre) }}"
-                                       maxlength="200" required>
-                                @error('nombre')
+                            <div class="col-sm-4">
+                                <label for="cod_referencia" class="form-label">Referencia</label>
+                                <input type="text" class="form-control font-monospace @error('cod_referencia') is-invalid @enderror"
+                                       id="cod_referencia" name="cod_referencia"
+                                       value="{{ old('cod_referencia', $repuesto->cod_referencia) }}" maxlength="50">
+                                <div class="form-text">Referencia comercial alterna.</div>
+                                @error('cod_referencia')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-12">
-                                <label for="descripcion" class="form-label">Descripcion</label>
-                                <textarea class="form-control @error('descripcion') is-invalid @enderror"
-                                          id="descripcion" name="descripcion" rows="3"
-                                          maxlength="500">{{ old('descripcion', $repuesto->descripcion) }}</textarea>
-                                @error('descripcion')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
-                            <div class="col-sm-6">
-                                <label for="categoria" class="form-label">Categoria</label>
-                                <input type="text" class="form-control @error('categoria') is-invalid @enderror"
-                                       id="categoria" name="categoria" list="listaCategorias"
-                                       value="{{ old('categoria', $repuesto->categoria) }}" maxlength="100">
-                                <datalist id="listaCategorias">
-                                    @foreach ($categorias as $categoria)
-                                        <option value="{{ $categoria }}"></option>
-                                    @endforeach
-                                </datalist>
-                                @error('categoria')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
-                            <div class="col-sm-6">
+                            <div class="col-sm-4">
                                 <label for="ubicacion" class="form-label">Ubicacion en almacen</label>
                                 <input type="text" class="form-control @error('ubicacion') is-invalid @enderror"
                                        id="ubicacion" name="ubicacion"
-                                       value="{{ old('ubicacion', $repuesto->ubicacion) }}" maxlength="100"
+                                       value="{{ old('ubicacion', $repuesto->ubicacion) }}" maxlength="30"
                                        placeholder="Ej: Estante A-01">
                                 @error('ubicacion')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-sm-4">
+                            <div class="col-12">
+                                <label for="nombre" class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control @error('nombre') is-invalid @enderror"
+                                       id="nombre" name="nombre" value="{{ old('nombre', $repuesto->nombre) }}"
+                                       maxlength="300" required>
+                                @error('nombre')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-sm-6">
+                                <label for="desc_cat_1" class="form-label">Grupo</label>
+                                <input type="text" class="form-control @error('desc_cat_1') is-invalid @enderror"
+                                       id="desc_cat_1" name="desc_cat_1" list="listaGrupos"
+                                       value="{{ old('desc_cat_1', $repuesto->desc_cat_1) }}" maxlength="50">
+                                <datalist id="listaGrupos">
+                                    @foreach ($categorias as $categoria)
+                                        <option value="{{ $categoria }}"></option>
+                                    @endforeach
+                                </datalist>
+                                @error('desc_cat_1')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-sm-6">
+                                <label for="desc_cat_2" class="form-label">Subgrupo</label>
+                                <input type="text" class="form-control @error('desc_cat_2') is-invalid @enderror"
+                                       id="desc_cat_2" name="desc_cat_2"
+                                       value="{{ old('desc_cat_2', $repuesto->desc_cat_2) }}" maxlength="50">
+                                <div class="form-text">Agrupa los repuestos relacionados del catalogo.</div>
+                                @error('desc_cat_2')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-sm-3">
                                 <label for="unidad_medida" class="form-label">
                                     Unidad de medida <span class="text-danger">*</span>
                                 </label>
                                 <input type="text" class="form-control @error('unidad_medida') is-invalid @enderror"
                                        id="unidad_medida" name="unidad_medida"
                                        value="{{ old('unidad_medida', $repuesto->unidad_medida) }}"
-                                       maxlength="20" required placeholder="UND, MTR, KG...">
+                                       maxlength="10" required placeholder="UND, MTR, KG...">
                                 @error('unidad_medida')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-sm-4">
-                                <label for="cantidad_disponible" class="form-label">
-                                    Cantidad disponible <span class="text-danger">*</span>
+                            <div class="col-sm-3">
+                                <label for="existencia" class="form-label">
+                                    Existencia <span class="text-danger">*</span>
                                 </label>
-                                <input type="number" class="form-control @error('cantidad_disponible') is-invalid @enderror"
-                                       id="cantidad_disponible" name="cantidad_disponible"
-                                       value="{{ old('cantidad_disponible', $repuesto->cantidad_disponible ?? 0) }}"
-                                       min="0" required>
-                                @error('cantidad_disponible')
+                                <input type="number" class="form-control @error('existencia') is-invalid @enderror"
+                                       id="existencia" name="existencia"
+                                       value="{{ old('existencia', $repuesto->existencia ?? 0) }}"
+                                       min="0" step="0.001" required>
+                                <div class="form-text">Saldo que despacha el almacen.</div>
+                                @error('existencia')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-sm-4">
+                            <div class="col-sm-3">
                                 <label for="stock_minimo" class="form-label">
                                     Stock minimo <span class="text-danger">*</span>
                                 </label>
                                 <input type="number" class="form-control @error('stock_minimo') is-invalid @enderror"
                                        id="stock_minimo" name="stock_minimo"
                                        value="{{ old('stock_minimo', $repuesto->stock_minimo ?? 0) }}"
-                                       min="0" required>
-                                <div class="form-text">Por debajo de este valor se marca "existencias bajas".</div>
+                                       min="0" step="0.001" required>
+                                <div class="form-text">Por debajo se marca "existencias bajas".</div>
                                 @error('stock_minimo')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
+                            <div class="col-sm-3">
+                                {{-- Solo lectura: stock lo escribe la sincronizacion con el ERP y
+                                     cualquier cambio a mano se perderia en la siguiente corrida. --}}
+                                <label for="stock" class="form-label">Stock del ERP</label>
+                                <input type="text" class="form-control-plaintext px-2 border rounded bg-body-secondary"
+                                       id="stock" value="{{ $repuesto->stock ?? 0 }}" readonly disabled>
+                                <div class="form-text">Lo actualiza el ERP.</div>
+                            </div>
+
                             <div class="col-12">
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" role="switch" id="activo"
-                                           name="activo" value="1"
-                                           @checked(old('activo', $repuesto->activo ?? true))>
-                                    <label class="form-check-label" for="activo">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="estado"
+                                           name="estado" value="1"
+                                           @checked(old('estado', $repuesto->estado ?? \App\Models\Repuesto::ESTADO_ACTIVO) == \App\Models\Repuesto::ESTADO_ACTIVO)>
+                                    <label class="form-check-label" for="estado">
                                         Visible en el catalogo publico
                                     </label>
                                 </div>

@@ -12,21 +12,21 @@ class CatalogoController extends Controller
 {
     /**
      * Catalogo publico con busqueda por texto, filtro por categoria
-     * (tbl_categoria), filtro por el tipo historico de texto y opcion de ver
-     * solo lo que tiene existencias.
+     * (tbl_categoria, el color del marco), filtro por el grupo del ERP y opcion
+     * de ver solo lo que tiene existencias.
      */
     public function index(Request $request, Carrito $carrito): View
     {
         $termino = $request->string('q')->toString();
         $categoriaId = $request->integer('categoria_id');
-        $tipo = $request->string('categoria')->toString();
+        $grupo = $request->string('categoria')->toString();
         $soloDisponibles = $request->boolean('disponibles');
 
         $repuestos = Repuesto::query()
             ->activos()
             ->buscar($termino)
-            ->when($categoriaId > 0, fn ($q) => $q->where('categoria_id', $categoriaId))
-            ->when($tipo !== '', fn ($q) => $q->where('categoria', $tipo))
+            ->when($categoriaId > 0, fn ($q) => $q->where('id_categoria', $categoriaId))
+            ->when($grupo !== '', fn ($q) => $q->where('desc_cat_1', $grupo))
             ->when($soloDisponibles, fn ($q) => $q->disponibles())
             ->with('categoriaAsignada')
             ->orderBy('nombre')
@@ -38,16 +38,18 @@ class CatalogoController extends Controller
         // devuelve cero resultados no le sirve a nadie.
         $categorias = Categoria::query()
             ->activas()
-            ->whereHas('repuestos', fn ($q) => $q->where('activo', true))
+            ->whereHas('repuestos', fn ($q) => $q->where('estado', Repuesto::ESTADO_ACTIVO))
             ->orderBy('col_nombre')
             ->get();
 
+        // El "Tipo de repuesto" pasa a ser el GRUPO del ERP (desc_cat_1), que
+        // reemplazo a la columna de texto `categoria` del esquema anterior.
         $tipos = Repuesto::query()
             ->activos()
-            ->whereNotNull('categoria')
+            ->whereNotNull('desc_cat_1')
             ->distinct()
-            ->orderBy('categoria')
-            ->pluck('categoria');
+            ->orderBy('desc_cat_1')
+            ->pluck('desc_cat_1');
 
         return view('catalogo.index', [
             'repuestos' => $repuestos,
@@ -55,7 +57,7 @@ class CatalogoController extends Controller
             'tipos' => $tipos,
             'termino' => $termino,
             'categoriaActiva' => $categoriaId,
-            'tipoActivo' => $tipo,
+            'tipoActivo' => $grupo,
             'soloDisponibles' => $soloDisponibles,
             'seleccionados' => $carrito->contenido(),
         ]);
@@ -63,14 +65,14 @@ class CatalogoController extends Controller
 
     public function show(Repuesto $repuesto, Carrito $carrito): View
     {
-        abort_unless($repuesto->activo, 404);
+        abort_unless($repuesto->estaActivo(), 404);
 
-        // Los relacionados siguen saliendo del tipo historico de texto y no de
-        // la categoria por color: el color agrupa mas de cien items y como
-        // "otros repuestos parecidos" no dice nada.
+        // Los relacionados salen del SUBGRUPO del ERP (desc_cat_2) y no de la
+        // categoria por color: el color agrupa mas de cien items y como "otros
+        // repuestos parecidos" no dice nada. El subgrupo si es especifico.
         $relacionados = Repuesto::query()
             ->activos()
-            ->where('categoria', $repuesto->categoria)
+            ->where('desc_cat_2', $repuesto->desc_cat_2)
             ->whereKeyNot($repuesto->id)
             ->inRandomOrder()
             ->limit(4)

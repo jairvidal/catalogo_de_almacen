@@ -52,7 +52,7 @@ class Carrito
     }
 
     /**
-     * Agrega unidades respetando el stock disponible del repuesto.
+     * Agrega unidades respetando el saldo disponible del repuesto.
      * Devuelve la cantidad que quedo finalmente en el carrito.
      */
     public function agregar(Repuesto $repuesto, int $cantidad = 1): int
@@ -63,7 +63,10 @@ class Carrito
     }
 
     /**
-     * Fija la cantidad exacta de un repuesto, topada al stock disponible.
+     * Fija la cantidad exacta de un repuesto, topada al saldo operativo.
+     *
+     * Se topa contra `existencia` y nunca contra `stock`: stock es lo que
+     * reporta el ERP y no descuenta lo ya despachado.
      */
     public function fijar(Repuesto $repuesto, int $cantidad): int
     {
@@ -76,7 +79,9 @@ class Carrito
             return 0;
         }
 
-        $cantidad = min($cantidad, max(0, $repuesto->cantidad_disponible));
+        // existencia es decimal: el carrito sigue moviendo unidades enteras, asi
+        // que una fraccion suelta (0.5 KG) no alcanza para pedir una unidad.
+        $cantidad = min($cantidad, (int) max(0, $repuesto->existencia));
 
         if ($cantidad <= 0) {
             unset($carrito[$repuesto->id]);

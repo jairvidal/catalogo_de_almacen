@@ -29,7 +29,7 @@ class CarritoController extends Controller
             'cantidad' => ['nullable', 'integer', 'min:1', 'max:9999'],
         ]);
 
-        if (! $repuesto->activo || $repuesto->cantidad_disponible <= 0) {
+        if (! $repuesto->estaActivo() || $repuesto->existencia <= 0) {
             $mensaje = 'El repuesto no tiene existencias disponibles.';
 
             return $request->expectsJson()
@@ -41,9 +41,9 @@ class CarritoController extends Controller
         $cantidadPrevia = $carrito->cantidadDe($repuesto->id);
         $cantidadFinal = $carrito->agregar($repuesto, $cantidadPedida);
 
-        // El carrito topa al stock disponible; si topo, hay que decirlo.
+        // El carrito topa al saldo disponible; si topo, hay que decirlo.
         $mensaje = $cantidadFinal < $cantidadPrevia + $cantidadPedida
-            ? "Solo hay {$repuesto->cantidad_disponible} unidades de \"{$repuesto->nombre}\"; se agrego el maximo disponible."
+            ? "Solo hay {$repuesto->existencia} unidades de \"{$repuesto->nombre}\"; se agrego el maximo disponible."
             : "Se agrego \"{$repuesto->nombre}\" a la solicitud.";
 
         if ($request->expectsJson()) {
@@ -70,7 +70,7 @@ class CarritoController extends Controller
         if ($final < (int) $datos['cantidad']) {
             return back()->with(
                 'error',
-                "Solo hay {$repuesto->cantidad_disponible} unidades de \"{$repuesto->nombre}\"; se ajusto la cantidad."
+                "Solo hay {$repuesto->existencia} unidades de \"{$repuesto->nombre}\"; se ajusto la cantidad."
             );
         }
 

@@ -36,7 +36,7 @@ class SolicitudService
 
         $solicitud = DB::transaction(function () use ($lineas, $datosSolicitante) {
             // Se releen los repuestos dentro de la transaccion para validar contra
-            // el stock real y no contra el que vio el usuario al armar el carrito.
+            // el saldo real y no contra el que vio el usuario al armar el carrito.
             $repuestos = Repuesto::whereIn('id', $lineas->pluck('id'))->get()->keyBy('id');
 
             $errores = [];
@@ -44,14 +44,14 @@ class SolicitudService
             foreach ($lineas as $linea) {
                 $repuesto = $repuestos->get($linea->id);
 
-                if (! $repuesto || ! $repuesto->activo) {
+                if (! $repuesto || ! $repuesto->estaActivo()) {
                     $errores[] = "El repuesto \"{$linea->nombre}\" ya no esta disponible en el catalogo.";
 
                     continue;
                 }
 
-                if ($linea->cantidad_pedida > $repuesto->cantidad_disponible) {
-                    $errores[] = "De \"{$repuesto->nombre}\" solo quedan {$repuesto->cantidad_disponible} unidades.";
+                if ($linea->cantidad_pedida > $repuesto->existencia) {
+                    $errores[] = "De \"{$repuesto->nombre}\" solo quedan {$repuesto->existencia} unidades.";
                 }
             }
 
@@ -121,18 +121,20 @@ class SolicitudService
                 $repuesto = $item->repuesto;
 
                 if ($repuesto && $cantidad > 0) {
-                    // Descuento condicionado: si otro pedido consumio el stock
-                    // entre tanto, el UPDATE no afecta filas y se topa la cantidad.
+                    // Descuento condicionado sobre el saldo operativo: si otro
+                    // pedido lo consumio entre tanto, el UPDATE no afecta filas
+                    // y se topa la cantidad. Nunca se toca `stock`, que es lo
+                    // que reporta el ERP.
                     $afectadas = Repuesto::whereKey($repuesto->id)
-                        ->where('cantidad_disponible', '>=', $cantidad)
-                        ->decrement('cantidad_disponible', $cantidad);
+                        ->where('existencia', '>=', $cantidad)
+                        ->decrement('existencia', $cantidad);
 
                     if ($afectadas === 0) {
-                        $disponible = (int) Repuesto::whereKey($repuesto->id)->value('cantidad_disponible');
+                        $disponible = (int) Repuesto::whereKey($repuesto->id)->value('existencia');
                         $cantidad = max(0, $disponible);
 
                         if ($cantidad > 0) {
-                            Repuesto::whereKey($repuesto->id)->decrement('cantidad_disponible', $cantidad);
+                            Repuesto::whereKey($repuesto->id)->decrement('existencia', $cantidad);
                         }
                     }
                 }
