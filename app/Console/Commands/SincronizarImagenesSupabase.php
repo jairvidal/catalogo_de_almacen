@@ -273,7 +273,9 @@ class SincronizarImagenesSupabase extends Command
             return;
         }
 
-        fputcsv($manejador, ['codigo', 'nombre', 'cantidad_disponible'], ';');
+        // La cantidad va en existencia (el saldo operativo), nunca en stock:
+        // stock lo escribe solo la sincronizacion con el ERP.
+        fputcsv($manejador, ['codigo', 'nombre', 'existencia'], ';');
 
         foreach ($nuevos as $nombre) {
             // El sufijo _v2 marca una foto alterna del mismo repuesto, no un

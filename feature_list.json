@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.3.5",
+  "version": "1.3.9",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -164,6 +164,81 @@
             "Ni codigo_api ni el token aparecen en el cuerpo, en el log ni en la salida"
           ],
           "status": "done"
+        },
+        {
+          "id": "CAT-08",
+          "name": "Actualizar la estructura del cuerpo de la consulta a la API de inventario: sin cant_page y con los criterios como IDs numericos.",
+          "acceptance": [
+            "cant_page desaparece del cuerpo de POST /inventario/consultar",
+            "criterio y criterio_2 viajan como arreglos de numeros, no de cadenas",
+            "cant vale 1000 y cant/page viajan como numeros JSON; id_cia, id_bod y tipo_inv siguen siendo cadenas",
+            "Los dos criterios viajan siempre, aunque queden vacios",
+            "Una sola constante gobierna el valor de cant y el corte de la ultima pagina",
+            "MAX_PAGINAS conserva el mismo techo de items con paginas de 1000",
+            "Parametro::listaEnteros() lee los criterios con trim por elemento y descarta lo no numerico",
+            "Un elemento no numerico no se cuela como 0 y queda registrado en el log",
+            "ParametroRequest rechaza en el servidor un criterio que no sea una lista de IDs",
+            "El formulario de /admin/parametros dice que los criterios son IDs numericos",
+            "Una instalacion existente no se queda con los nombres viejos en silencio",
+            "La respuesta de la API no cambia: extraerCodigo, extraerCantidad y filas quedan intactos",
+            "La sincronizacion sigue escribiendo unicamente repuestos.stock"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-09",
+          "name": "Corregir el resultado y la fecha del boton Actualizar del inventario y dejar bitacora de cada sincronizacion.",
+          "acceptance": [
+            "El contador de actualizados cuenta los repuestos cuyo stock CAMBIO, no las filas que el UPDATE toco",
+            "Los repuestos que ya estaban al dia se cuentan aparte y no se reescriben",
+            "El mensaje distingue 'el stock ya estaba al dia' de 'no cruzo ningun codigo' y de 'el ERP no devolvio nada'",
+            "La fecha de la ultima corrida se muestra en hora de Colombia, no en UTC",
+            "Despues de una sincronizacion manual la fecha mostrada corresponde a esa corrida, sin recargar la pagina",
+            "Cada corrida anexa una linea a storage/logs/sincronizacion.txt con fecha, actualizados y no actualizados",
+            "La bitacora la escribe el servicio orquestador: no se duplica en el controlador ni en el comando",
+            "La bitacora se anexa, crea el archivo si no existe y no se escribe en modo --simular",
+            "Un fallo al escribir la bitacora no tumba la sincronizacion: se registra en el log",
+            "Ni codigo_api ni el token aparecen en la bitacora, en el log ni en la respuesta JSON",
+            "La sincronizacion sigue escribiendo unicamente repuestos.stock"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-10",
+          "name": "Realinear con la columna existencia los ultimos archivos que seguian usando el nombre viejo cantidad_disponible.",
+          "acceptance": [
+            "GeneradorDatosRepuesto devuelve la cantidad en existencia y no en cantidad_disponible",
+            "El algoritmo crc32 y los valores que produce el generador no cambian",
+            "ImportarRepuestos escribe existencia: descripcion del comando, columnas admitidas y conversion numerica",
+            "Los CSV que ya tiene el almacen con la cabecera cantidad_disponible siguen importando",
+            "Con las dos cabeceras presentes manda existencia y la vieja se ignora",
+            "existencia y stock_minimo se importan como decimales y no se truncan a entero",
+            "Un valor no numerico no entra como 0 ni borra el saldo del item",
+            "El manifiesto CSV de repuestos:sincronizar-supabase sale con la cabecera existencia",
+            "Ni el importador ni el generador escriben stock en ningun caso"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-11",
+          "name": "Carga inicial de repuestos.existencia copiando repuestos.stock, para desbloquear los pedidos sin depender de la API del ERP.",
+          "acceptance": [
+            "El comando repuestos:inicializar-existencia-desde-stock copia stock a existencia",
+            "Solo escribe las filas con existencia = 0: una fila con saldo vivo no se pisa nunca",
+            "Salta las filas con stock <= 0 en vez de escribir un 0 sobre un 0",
+            "Copia el valor exacto, con decimales, porque las dos columnas son decimal(12,3)",
+            "No toca stock ni ninguna otra columna",
+            "Todo el trabajo va en una sola sentencia SQL dentro de una transaccion",
+            "La bandera inv.existencia_inicializada bloquea una segunda corrida",
+            "Es la MISMA bandera de la via por API: si una inicializo, la otra no corre",
+            "Parametro::existenciaYaInicializada es el unico lector de la bandera y marcarExistenciaInicializada el unico escritor",
+            "Si el parametro falta o esta inactivo se da por inicializada y no se escribe",
+            "--simular reporta sin escribir ni el saldo ni la bandera",
+            "El comando confirma de forma interactiva y avisa del riesgo de los puntos de reposicion",
+            "Los contadores son excluyentes y exhaustivos: total = ya_con_saldo + candidatas + sin_stock"
+          ],
+          "status": "done",
+          "notas": "RIESGO ASUMIDO A SABIENDAS: stock arrastra los valores de la carga masiva del ERP del 2026-08-21 y en unas 2.669 filas es un punto de reposicion (stock == stock_minimo) y no una existencia fisica. Se decidio copiarlo tal cual, SIN excluir esas filas, porque la alternativa era dejar el almacen sin despachar esperando a la API; el ajuste fino se hace repuesto por repuesto desde el panel. Simulacion sobre la base real: 28.490 repuestos, 7.229 recibirian saldo, 0 con saldo previo, 21.261 siguen en 0 porque el ERP no reporta stock. La escritura real queda a cargo del administrador."
         }
       ]
     },

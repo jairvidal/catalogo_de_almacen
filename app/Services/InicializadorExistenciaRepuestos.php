@@ -27,23 +27,29 @@ use RuntimeException;
  * no tiene codigo que escriba `existencia` — y deja el acto irreversible en un
  * comando que hay que teclear y confirmar.
  *
- * POR QUE LEE LA API Y NO COPIA `stock`
- * -------------------------------------
- * `stock` no contiene solo lo que confirmo la API: arrastra tambien los valores
- * de la carga masiva del ERP del 2026-08-21, y en 2.669 de esas filas el valor
- * es un punto de reposicion (stock == stock_minimo, con stock_maximo al doble),
- * no una existencia fisica. Copiar `stock` a `existencia` le habria dado saldo
- * a repuestos que no lo tienen. Solo cuenta lo que el ERP reporta ahora, con su
- * `cant_disp`, y por eso se comparte LectorInventarioErp con el sincronizador.
+ * POR QUE ESTA VIA LEE LA API
+ * ---------------------------
+ * Porque solo cuenta con lo que el ERP reporta ahora, con su `cant_disp`, y por
+ * eso comparte LectorInventarioErp con el sincronizador. La razon de haberla
+ * escrito asi es que `stock` no contiene unicamente lo que confirmo la API:
+ * arrastra tambien los valores de la carga masiva del ERP del 2026-08-21, y en
+ * unas 2.669 de esas filas el valor es un punto de reposicion (stock ==
+ * stock_minimo, con stock_maximo al doble) y no una existencia fisica.
+ *
+ * ESO YA NO ES UNA PROHIBICION, ES UN RIESGO ASUMIDO: con ese argumento sobre la
+ * mesa el usuario decidio que tambien se pudiera copiar `stock` tal cual, sin
+ * excluir esas filas, porque esperar a la API dejaba al almacen sin despachar.
+ * Esa segunda via es App\Services\InicializadorExistenciaDesdeStock — una clase
+ * hermana, no un `if` dentro de esta— y las dos comparten la misma bandera: la
+ * que corra primero deja a la otra sin trabajo.
  *
  * TRES BARRERAS, PORQUE EL ERROR NO TIENE VUELTA ATRAS
  * ----------------------------------------------------
  * 1. El parametro inv.existencia_inicializada, que vive en la base y por eso
  *    sobrevive a reinicios y a un `cache:clear` (una bandera en el cache no).
- *    EL RESPALDO CUANDO FALTA O ESTA INACTIVO ES "YA INICIALIZADA", al reves
- *    que el respaldo de inv.actualizar: alli lo seguro es seguir sincronizando,
- *    aqui lo seguro es NO escribir. Si no se puede confirmar que hace falta, no
- *    se hace.
+ *    Lo lee Parametro::existenciaYaInicializada(), que es el unico lector de la
+ *    bandera y el que impone el respaldo seguro: si falta o esta inactivo, se
+ *    da por inicializada y no se escribe.
  * 2. El UPDATE toca unicamente las filas con existencia = 0. Una fila que ya
  *    tiene saldo operativo nunca se pisa, ni aunque alguien vuelva a correr el
  *    comando.
@@ -62,10 +68,13 @@ class InicializadorExistenciaRepuestos
 
     public function __construct(private readonly LectorInventarioErp $lector) {}
 
-    /** Si ya se hizo la carga inicial. Ante la duda, dice que si. */
+    /**
+     * Si ya se hizo la carga inicial, por esta via o por la que copia `stock`.
+     * Ante la duda, dice que si (ver Parametro::existenciaYaInicializada).
+     */
     public function yaSeInicializo(): bool
     {
-        return Parametro::valor(Parametro::INV_EXISTENCIA_INICIALIZADA, Parametro::INV_SI) !== Parametro::INV_NO;
+        return Parametro::existenciaYaInicializada();
     }
 
     /**
@@ -113,9 +122,7 @@ class InicializadorExistenciaRepuestos
 
             // El UPDATE y la marca van juntos: si se escribiera el saldo y la
             // marca no, la proxima corrida volveria a escribirlo.
-            Parametro::query()
-                ->where('col_nombre', Parametro::INV_EXISTENCIA_INICIALIZADA)
-                ->update(['col_valor' => Parametro::INV_SI]);
+            Parametro::marcarExistenciaInicializada();
 
             Log::info('Carga inicial de repuestos.existencia realizada.', [
                 'filas' => $afectadas,

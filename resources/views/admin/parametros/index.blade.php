@@ -38,14 +38,19 @@
                     @endif
                 </p>
 
+                {{-- Las horas son de Colombia. El nodo marcado lo reescribe
+                     app.js con la fecha que devuelve el boton, para que el
+                     administrador vea moverse la marca sin recargar. --}}
                 <p class="small text-secondary mb-0">
-                    @if ($sincronizacion['ultima'])
-                        Ultima corrida: {{ $sincronizacion['ultima']->format('d/m/Y h:i a') }}.
-                        @unless ($sincronizacion['es_manual'])
-                            Proxima: {{ $sincronizacion['proxima']->format('d/m/Y h:i a') }}.
-                        @endunless
-                    @else
-                        Todavia no ha corrido ninguna vez.
+                    <span data-sincronizar-ultima>
+                        @if ($sincronizacion['ultima'])
+                            Ultima corrida: {{ $sincronizacion['ultima'] }}.
+                        @else
+                            Todavia no ha corrido ninguna vez.
+                        @endif
+                    </span>
+                    @if ($sincronizacion['ultima'] && ! $sincronizacion['es_manual'])
+                        Proxima: {{ $sincronizacion['proxima'] }}.
                     @endif
                 </p>
 

@@ -14,11 +14,16 @@ use RuntimeException;
  *  - SincronizadorStockRepuestos, que escribe `stock` en cada corrida.
  *  - InicializadorExistenciaRepuestos, que escribe `existencia` una sola vez.
  *
- * Que el inicializador lea la API en vez de copiar `stock` no es un capricho:
+ * Que ese inicializador lea la API en vez de copiar `stock` tiene un motivo:
  * `stock` trae ademas los valores de la carga masiva del ERP del 2026-08-21, y
- * en 2.669 de esas filas el valor es un punto de reposicion (stock == stock_minimo
- * con stock_maximo al doble), no una existencia fisica. Copiar eso a `existencia`
- * le daria saldo fantasma al almacen. Solo vale lo que la API confirma.
+ * en unas 2.669 de esas filas el valor es un punto de reposicion (stock ==
+ * stock_minimo con stock_maximo al doble), no una existencia fisica. Lo que lee
+ * este recorrido es lo unico que el ERP confirma hoy.
+ *
+ * Existe ademas una segunda via, InicializadorExistenciaDesdeStock, que copia
+ * `stock` tal cual y NO PASA POR AQUI: el usuario decidio asumir ese riesgo
+ * antes que dejar al almacen sin despachar. No es este archivo el que lo
+ * impide; las dos vias comparten la bandera inv.existencia_inicializada.
  *
  * Aqui NO se escribe en la base. Solo se lee el endpoint y se normaliza.
  */
@@ -90,7 +95,9 @@ class LectorInventarioErp
                 $existencias[(int) $codigo] = $cantidad;
             }
 
-            if (count($filas) < InventarioApiSidocsa::CANT_PAGE) {
+            // El tamano de pagina es el mismo numero que viaja en `cant`: una
+            // sola constante gobierna las dos cosas (ver InventarioApiSidocsa).
+            if (count($filas) < InventarioApiSidocsa::TAMANO_PAGINA) {
                 $topeAlcanzado = false;
 
                 break;

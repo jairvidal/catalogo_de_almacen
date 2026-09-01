@@ -37,27 +37,27 @@ class InventarioApiSidocsa
      */
     private const SEGUNDOS_TOKEN = 240;
 
-    /** Tamano de pagina que se le pide al endpoint de inventario. */
-    public const CANT_PAGE = 100;
-
     /**
-     * Valor que el ERP espera en `cant`. NO es un tope de la respuesta: se
-     * probo con 2000 y el endpoint devolvio los mismos 500 registros, asi que
-     * no esta truncando nada. Lo que acota el resultado es `existencias: 1`
-     * junto con la bodega y los grupos: de los ~13.470 repuestos del catalogo
-     * en esos cinco grupos, solo ~500 tienen existencia en P2ALM.
+     * Tamano de pagina. UNA SOLA CONSTANTE PARA DOS COSAS, a proposito:
+     *  - es el valor que viaja en `cant`, y
+     *  - es el corte de la ultima pagina en LectorInventarioErp (una pagina con
+     *    menos registros que este numero es la ultima).
      *
-     * Quien pagina de verdad es `page`, que va de 1 en adelante hasta que una
-     * pagina trae menos de CANT_PAGE registros.
+     * Antes eran dos (`cant` = 500 y `cant_page` = 100) y el corte miraba la
+     * segunda. Al desaparecer `cant_page` del cuerpo, quien fija el tamano de
+     * pagina es `cant`: si el corte viviera en otra constante, subir una sin la
+     * otra cortaria el recorrido en la primera pagina y la sincronizacion
+     * traeria solo una parte del inventario sin avisar.
      */
-    private const CANT = 500;
+    public const TAMANO_PAGINA = 1000;
 
     /**
      * Tope duro de paginas. Sin el, un endpoint que siempre responda lleno
-     * dejaria el comando girando para siempre. 500 paginas de 100 son 50.000
-     * items, holgado contra los ~29.000 del ERP.
+     * dejaria el comando girando para siempre. 50 paginas de 1.000 son 50.000
+     * items, el mismo techo que antes daban 500 paginas de 100 y holgado contra
+     * los ~29.000 del ERP.
      */
-    public const MAX_PAGINAS = 500;
+    public const MAX_PAGINAS = 50;
 
     /**
      * Campo de la respuesta que trae el codigo del repuesto. CONFIRMADO por el
@@ -236,27 +236,29 @@ class InventarioApiSidocsa
         return $token;
     }
 
+    /**
+     * Arma el cuerpo de la consulta. ES EL UNICO SITIO donde se construye: la
+     * consola y el boton del panel pasan los dos por aqui.
+     *
+     * `cant` y `page` van como numeros JSON; `id_cia`, `id_bod` y `tipo_inv`
+     * como cadenas. `criterio` (SUBGRUPO) y `criterio_2` (GRUPO) son arreglos
+     * de IDs numericos del ERP y viajan SIEMPRE, aunque queden vacios: el
+     * endpoint espera la llave.
+     */
     private function pedirInventario(int $pagina, string $token): Response
     {
         try {
             return $this->cliente()
                 ->withToken($token)
                 ->post(self::URL_BASE.'/inventario/consultar', [
-                    'cant' => (string) self::CANT,
-                    'cant_page' => (string) self::CANT_PAGE,
-                    'tipo_inv' => 'INV1455',
-                    'id_bod' => (string) Parametro::valor('api.id_bod', ''),
+                    'cant' => self::TAMANO_PAGINA,
+                    'page' => $pagina,
                     'id_cia' => (string) Parametro::valor('api.id_cia', ''),
-                    'page' => (string) $pagina,
+                    'id_bod' => (string) Parametro::valor('api.id_bod', ''),
+                    'tipo_inv' => 'INV1455',
+                    'criterio' => Parametro::listaEnteros(Parametro::API_CRITERIO),
+                    'criterio_2' => Parametro::listaEnteros(Parametro::API_CRITERIO_2),
                     'existencias' => 1,
-                    // criterio (SUBGRUPO) y criterio_2 (GRUPO) viajan SIEMPRE y
-                    // SIEMPRE como arreglo JSON, aunque queden vacios: el
-                    // endpoint espera listas, no cadenas. El administrador los
-                    // configura como una lista separada por comas y
-                    // Parametro::lista() la parte sin recortarle los espacios a
-                    // cada elemento (ver la nota de ese metodo).
-                    'criterio' => Parametro::lista(Parametro::API_CRITERIO),
-                    'criterio_2' => Parametro::lista(Parametro::API_CRITERIO_2),
                 ]);
         } catch (ConnectionException $e) {
             throw new RuntimeException("No se pudo conectar con la API de inventario en la pagina {$pagina}.", 0, $e);

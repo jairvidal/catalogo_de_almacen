@@ -10,7 +10,10 @@
     $opciones = $parametro->opciones;
     // Los criterios de la API son listas separadas por coma (ver Parametro::LISTAS);
     // el campo es el mismo de texto, lo que cambia es la ayuda del formulario.
+    // Los de LISTAS_ENTERAS ademas solo admiten IDs numericos, y eso lo valida
+    // el servidor en ParametroRequest.
     $esLista = $parametro->es_lista;
+    $esListaEntera = $parametro->es_lista_entera;
 @endphp
 
 @section('titulo', $esNuevo ? 'Nuevo parametro' : 'Editar '.$parametro->col_nombre)
@@ -109,9 +112,14 @@
                                         @if ($sensible)
                                             Es una credencial: no se muestra ni se registra en el log.
                                             {{ $esNuevo ? '' : 'Si deja el campo vacio se conserva el valor guardado.' }}
+                                        @elseif ($esListaEntera)
+                                            Es una lista de IDs numericos del ERP separados por coma
+                                            (ej: <span class="font-monospace">3038,1230</span>).
+                                            Dejarlo vacio envia la lista vacia, es decir sin filtro.
+                                            Los espacios alrededor de cada ID no cuentan; un valor que no
+                                            sea numerico se rechaza.
                                         @elseif ($esLista)
-                                            Es una lista: escriba los valores separados por coma
-                                            (ej: <span class="font-monospace">ELECTRICO,MATERIAS PRIMAS</span>).
+                                            Es una lista: escriba los valores separados por coma.
                                             Dejarlo vacio envia la lista vacia, es decir sin filtro.
                                             Se guarda tal cual, incluidos los espacios del inicio y del final.
                                         @else

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Parametro de configuracion del sistema, editable desde /admin/parametros.
@@ -100,6 +101,21 @@ class Parametro extends Model
     ];
 
     /**
+     * Subconjunto de LISTAS cuyos elementos son IDs NUMERICOS del ERP.
+     *
+     * El endpoint de inventario dejo de recibir los nombres de grupo y subgrupo
+     * ('ELECTRICO') y ahora recibe sus IDs (2002). Marcarlos aqui es lo que hace
+     * que ParametroRequest los valide en el servidor, que el formulario cambie
+     * la ayuda del campo y que listaEnteros() sepa a que convertir.
+     *
+     * @var list<string>
+     */
+    public const LISTAS_ENTERAS = [
+        self::API_CRITERIO,
+        self::API_CRITERIO_2,
+    ];
+
+    /**
      * Parametros cuyo valor es una credencial: no se imprime en el listado ni
      * viaja al navegador en el formulario, y jamas se escribe en el log.
      *
@@ -131,9 +147,12 @@ class Parametro extends Model
      * Lector centralizado. Es el UNICO punto por donde se leen parametros:
      * devuelve el valor solo si el parametro esta activo, y si no, el respaldo.
      *
-     * NO se le hace trim al valor: hay parametros cuyo espacio final es
-     * significativo para la API de inventario (ver api.criterio_2 en
-     * ParametroSeeder), y recortarlo cambiaria la consulta en silencio.
+     * NO se le hace trim al valor, y sigue siendo la regla general: un valor
+     * puede llevar un espacio significativo y recortarlo cambiaria la consulta
+     * en silencio (por eso col_valor esta fuera del middleware TrimStrings).
+     * Los dos criterios de la API ya no dependen de eso —desde que son IDs
+     * numericos, listaEnteros() les hace trim por elemento—, pero el mecanismo
+     * se mantiene para cualquier otro parametro.
      */
     public static function valor(string $nombre, ?string $porDefecto = null): ?string
     {
@@ -146,17 +165,54 @@ class Parametro extends Model
     }
 
     /**
+     * Si repuestos.existencia ya recibio su carga inicial.
+     *
+     * ES EL UNICO LECTOR DE LA BANDERA y vive aqui, en el modelo, y no dentro de
+     * uno de los dos inicializadores (App\Services\InicializadorExistenciaRepuestos,
+     * que lee la API, y App\Services\InicializadorExistenciaDesdeStock, que copia
+     * repuestos.stock): el hecho es UNO SOLO, asi que si una via ya inicializo la
+     * otra tampoco debe correr. Con la lectura duplicada en cada clase, cambiar
+     * el criterio en una y olvidar la otra volveria a escribir el saldo operativo.
+     *
+     * ANTE LA DUDA DICE QUE SI, al reves que el respaldo de inv.actualizar: alli
+     * lo seguro es seguir sincronizando, aqui lo seguro es NO escribir. Si el
+     * parametro falta o esta inactivo no se puede confirmar que la carga haga
+     * falta, y no se hace.
+     */
+    public static function existenciaYaInicializada(): bool
+    {
+        return static::valor(self::INV_EXISTENCIA_INICIALIZADA, self::INV_SI) !== self::INV_NO;
+    }
+
+    /**
+     * Deja constancia de que la carga inicial ya se hizo.
+     *
+     * La llaman los dos inicializadores DENTRO de su transaccion, junto al
+     * UPDATE del saldo: escribir el saldo y no la marca haria que la proxima
+     * corrida volviera a escribirlo.
+     */
+    public static function marcarExistenciaInicializada(): void
+    {
+        static::query()
+            ->where('col_nombre', self::INV_EXISTENCIA_INICIALIZADA)
+            ->update(['col_valor' => self::INV_SI]);
+    }
+
+    /**
      * Valor de un parametro de lista, ya partido en sus elementos.
      *
      * Lee por Parametro::valor(), o sea que respeta el estado: un parametro
      * inactivo devuelve la lista vacia, igual que si no existiera.
      *
-     * NO SE LE HACE trim A CADA ELEMENTO, y es a proposito: el valor de estos
-     * parametros se guarda literal (ver la nota de valor() y la excepcion de
-     * col_valor en el middleware TrimStrings), asi que un elemento que
-     * legitimamente termine en espacio tiene que llegar con ese espacio a la
-     * API. Lo unico que se descarta son los elementos vacios, para que ni ''
-     * ni 'A,' terminen mandando cadenas vacias dentro del arreglo JSON.
+     * NO SE LE HACE trim A CADA ELEMENTO, y es a proposito: el valor se guarda
+     * literal (ver la nota de valor() y la excepcion de col_valor en el
+     * middleware TrimStrings), asi que un elemento que legitimamente termine en
+     * espacio llega con ese espacio a su destino. Lo unico que se descarta son
+     * los elementos vacios, para que ni '' ni 'A,' terminen mandando cadenas
+     * vacias dentro del arreglo JSON.
+     *
+     * Los criterios de la API de inventario NO usan este lector directamente:
+     * son IDs numericos y los lee listaEnteros(), que si recorta cada elemento.
      *
      * @return list<string>
      */
@@ -175,6 +231,60 @@ class Parametro extends Model
     }
 
     /**
+     * Lo mismo que lista(), pero devolviendo los elementos como ENTEROS.
+     *
+     * Es lo que espera hoy la API de inventario en `criterio` y `criterio_2`:
+     * IDs de subgrupo y de grupo, no nombres. A diferencia de lista(), aqui SI
+     * se le hace trim a cada elemento —la razon para no hacerlo era que el
+     * nombre de un grupo podia llevar un espacio significativo, y un ID no—, de
+     * modo que "2002, 2010" se escriba como se lea.
+     *
+     * UN ELEMENTO NO NUMERICO SE DESCARTA CON Log::warning Y NO EN SILENCIO:
+     * una instalacion que venga de la version anterior conserva los nombres en
+     * el valor (el seeder no pisa lo que configuro el administrador) y sin el
+     * aviso la consulta saldria sin filtro sin que nadie se enterara.
+     *
+     * @return list<int>
+     */
+    public static function listaEnteros(string $nombre): array
+    {
+        $enteros = [];
+        $descartados = [];
+
+        foreach (static::lista($nombre) as $elemento) {
+            $elemento = trim($elemento);
+
+            if ($elemento === '') {
+                continue;
+            }
+
+            // ctype_digit y no is_numeric: un ID del ERP es un entero positivo,
+            // y (int) 'ELECTRICO' daria 0, que es un filtro valido para la API.
+            if (! ctype_digit($elemento)) {
+                $descartados[] = $elemento;
+
+                continue;
+            }
+
+            $enteros[] = (int) $elemento;
+        }
+
+        if ($descartados !== []) {
+            Log::warning('Se descartaron elementos no numericos de un parametro de lista.', [
+                'parametro' => $nombre,
+                'descartados' => count($descartados),
+                // De una credencial no se escribe el contenido en el log, ni
+                // siquiera el trozo que se descarto.
+                'ejemplos' => in_array($nombre, self::SENSIBLES, true)
+                    ? []
+                    : array_slice($descartados, 0, 5),
+            ]);
+        }
+
+        return $enteros;
+    }
+
+    /**
      * Opciones cerradas de un parametro, o un arreglo vacio si admite texto
      * libre. Es el unico sitio que consulta el mapa OPCIONES.
      *
@@ -183,6 +293,16 @@ class Parametro extends Model
     public static function opcionesDe(?string $nombre): array
     {
         return self::OPCIONES[(string) $nombre] ?? [];
+    }
+
+    /**
+     * Si el valor de un parametro es una lista de IDs numericos. Es el unico
+     * sitio que consulta LISTAS_ENTERAS: lo usan ParametroRequest para validar
+     * en el servidor y el formulario para decir como se escribe.
+     */
+    public static function esListaEntera(?string $nombre): bool
+    {
+        return in_array((string) $nombre, self::LISTAS_ENTERAS, true);
     }
 
     /**
@@ -236,6 +356,15 @@ class Parametro extends Model
     public function getEsListaAttribute(): bool
     {
         return in_array($this->col_nombre, self::LISTAS, true);
+    }
+
+    /**
+     * Si los elementos de esa lista tienen que ser IDs numericos. Lo usa el
+     * formulario para cambiar la ayuda del campo.
+     */
+    public function getEsListaEnteraAttribute(): bool
+    {
+        return self::esListaEntera($this->col_nombre);
     }
 
     /**

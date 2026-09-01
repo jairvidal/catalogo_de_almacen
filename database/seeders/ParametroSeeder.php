@@ -16,12 +16,16 @@ use Illuminate\Database\Seeder;
 class ParametroSeeder extends Seeder
 {
     /**
-     * OJO CON api.criterio y api.criterio_2: su valor es una LISTA SEPARADA POR
-     * COMAS ('ELECTRICO,MATERIAS PRIMAS'), porque la API los recibe como
-     * arreglos JSON. Parametro::lista() la parte descartando solo los elementos
-     * vacios, SIN hacerle trim a cada uno: ni el seeder, ni Parametro::valor(),
-     * ni ParametroRequest recortan el valor, de modo que un elemento que
-     * legitimamente lleve un espacio conserva ese espacio hasta la API.
+     * OJO CON api.criterio y api.criterio_2: su valor es una LISTA DE IDs
+     * NUMERICOS SEPARADOS POR COMA ('2002,2010'), porque la API los recibe como
+     * arreglos JSON de enteros. Parametro::listaEnteros() la parte, le hace trim
+     * a cada elemento y descarta —con Log::warning— lo que no sea numerico.
+     *
+     * CUIDADO EN UNA INSTALACION QUE YA EXISTE: el upsert de abajo NO pisa el
+     * valor, asi que si el administrador tenia los nombres de grupo
+     * ('ELECTRICO,MATERIAS PRIMAS') hay que reemplazarlos por los IDs desde
+     * /admin/parametros. La migracion 2026_08_23_100000 hace ese reemplazo una
+     * sola vez, pero solo sobre los valores que quedaron con texto.
      *
      * @var list<array{nombre: string, valor: string, descripcion: string}>
      */
@@ -58,20 +62,17 @@ class ParametroSeeder extends Seeder
         ],
         [
             'nombre' => Parametro::API_CRITERIO_2,
-            'valor' => 'ELECTRICO,MATERIAS PRIMAS,FERRETERIA,HIDRAULICA Y NEUMATICA,MANGUERAS Y ACCESORIOS',
-            'descripcion' => 'GRUPOS que se consultan en la API de inventario; viaja como el arreglo '
-                .'criterio_2. Se escriben separados por coma y deben coincidir con repuestos.desc_cat_1. '
-                .'El valor se guarda literal: lo que escriba viaja tal cual, espacios incluidos.',
+            'valor' => '2002,2010,2013,2014',
+            'descripcion' => 'IDs de los GRUPOS que se consultan en la API de inventario; viajan como el '
+                .'arreglo criterio_2. Se escriben separados por coma y son NUMEROS, no nombres: un valor '
+                .'que no sea numerico se descarta y queda registrado en el log.',
         ],
         [
             'nombre' => Parametro::API_CRITERIO,
-            // Vacio a proposito: en la consulta acordada con el ERP el arreglo
-            // criterio va vacio. Aun asi el parametro existe y esta activo, para
-            // que filtrar por subgrupo sea configurar el panel y no tocar codigo.
-            'valor' => '',
-            'descripcion' => 'SUBGRUPOS que se consultan en la API de inventario; viaja como el arreglo '
-                .'criterio. Se escriben separados por coma, igual que api.criterio_2. Vacio significa '
-                .'sin filtro de subgrupo, que es como se consulta hoy.',
+            'valor' => '3038,1230',
+            'descripcion' => 'IDs de los SUBGRUPOS que se consultan en la API de inventario; viajan como el '
+                .'arreglo criterio. Se escriben separados por coma y son NUMEROS, igual que api.criterio_2. '
+                .'Vacio significa sin filtro de subgrupo.',
         ],
         [
             'nombre' => Parametro::INV_EXISTENCIA_INICIALIZADA,

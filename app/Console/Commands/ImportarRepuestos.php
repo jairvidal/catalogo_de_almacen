@@ -18,18 +18,43 @@ class ImportarRepuestos extends Command
                             {--separador=; : Separador de columnas (; o ,)}
                             {--crear : Crea los codigos que aun no existan en el catalogo}';
 
-    protected $description = 'Importa o actualiza repuestos desde un archivo CSV (codigo,nombre,descripcion,categoria,ubicacion,unidad_medida,cantidad_disponible,stock_minimo)';
+    protected $description = 'Importa o actualiza repuestos desde un archivo CSV (codigo,nombre,descripcion,categoria,ubicacion,unidad_medida,existencia,stock_minimo)';
 
     /**
      * Columnas admitidas. Solo `codigo` es obligatoria; el resto se actualiza
      * unicamente si viene en el encabezado del archivo.
      *
+     * `existencia` es el saldo operativo del almacen. NUNCA se acepta `stock`:
+     * esa columna la escribe solo la sincronizacion con el ERP.
+     *
      * @var list<string>
      */
     private const COLUMNAS = [
         'codigo', 'nombre', 'descripcion', 'categoria',
-        'ubicacion', 'unidad_medida', 'cantidad_disponible', 'stock_minimo',
+        'ubicacion', 'unidad_medida', 'existencia', 'stock_minimo',
     ];
+
+    /**
+     * Encabezados viejos que se siguen aceptando como alias del nombre actual.
+     *
+     * Los archivos que el almacen ya tiene armados traen la cabecera
+     * `cantidad_disponible`, que es como se llamaba la columna antes de
+     * realinear la tabla con el ERP. Rechazarlos obligaria a reeditar a mano
+     * cada CSV existente, asi que se traducen al leer el encabezado.
+     *
+     * @var array<string, string>
+     */
+    private const ALIAS = [
+        'cantidad_disponible' => 'existencia',
+    ];
+
+    /**
+     * Columnas decimal(12,3) en la base: el almacen mide en KG y hay items con
+     * fraccion, asi que convertirlas a entero las truncaria en silencio.
+     *
+     * @var list<string>
+     */
+    private const NUMERICAS = ['existencia', 'stock_minimo'];
 
     public function handle(): int
     {
@@ -64,6 +89,8 @@ class ImportarRepuestos extends Command
             fn ($columna) => strtolower(trim(str_replace("\xEF\xBB\xBF", '', (string) $columna))),
             $encabezado
         );
+
+        $encabezado = $this->traducirAlias($encabezado);
 
         if (! in_array('codigo', $encabezado, true)) {
             fclose($manejador);
@@ -106,10 +133,24 @@ class ImportarRepuestos extends Command
                 continue;
             }
 
-            foreach (['cantidad_disponible', 'stock_minimo'] as $numerica) {
-                if (isset($datos[$numerica])) {
-                    $datos[$numerica] = (int) $datos[$numerica];
+            foreach (self::NUMERICAS as $numerica) {
+                if (! isset($datos[$numerica])) {
+                    continue;
                 }
+
+                $cantidad = $this->aDecimal((string) $datos[$numerica]);
+
+                // Un (float) a secas convierte "abc" en 0.0 y le borraria el
+                // saldo a un item real sin decir nada. Se descarta el campo y
+                // se avisa; el resto de la fila si se importa.
+                if ($cantidad === null) {
+                    $this->warn("Linea {$linea}: se ignora {$numerica} porque \"{$datos[$numerica]}\" no es un numero.");
+                    unset($datos[$numerica]);
+
+                    continue;
+                }
+
+                $datos[$numerica] = $cantidad;
             }
 
             $repuesto = Repuesto::where('codigo', $codigo)->first();
@@ -147,6 +188,51 @@ class ImportarRepuestos extends Command
         $this->info("Omitidos:     {$omitidos}");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Cambia los encabezados viejos por el nombre actual de la columna.
+     *
+     * Si el archivo ya trae el nombre nuevo, el alias no se aplica: manda el
+     * actual y el viejo se ignora como cualquier columna desconocida, para no
+     * dejar que dos columnas escriban el mismo campo.
+     *
+     * @param  list<string>  $encabezado
+     * @return list<string>
+     */
+    private function traducirAlias(array $encabezado): array
+    {
+        foreach (self::ALIAS as $viejo => $nuevo) {
+            if (in_array($nuevo, $encabezado, true)) {
+                continue;
+            }
+
+            $indice = array_search($viejo, $encabezado, true);
+
+            if ($indice !== false) {
+                $encabezado[$indice] = $nuevo;
+                $this->comment("La columna \"{$viejo}\" se importa como \"{$nuevo}\".");
+            }
+        }
+
+        return $encabezado;
+    }
+
+    /**
+     * Convierte el texto del CSV en la cantidad decimal, o null si no es un
+     * numero.
+     *
+     * Se admite la coma como separador decimal porque el separador de columnas
+     * por defecto es ";", justo el que usa el Excel en español, y ese mismo
+     * Excel escribe "1,5" y no "1.5".
+     */
+    private function aDecimal(string $valor): ?float
+    {
+        if (! str_contains($valor, '.') && substr_count($valor, ',') === 1) {
+            $valor = str_replace(',', '.', $valor);
+        }
+
+        return is_numeric($valor) ? (float) $valor : null;
     }
 
     private function buscarFoto(string $codigo): ?string

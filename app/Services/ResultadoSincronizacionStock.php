@@ -16,6 +16,8 @@ namespace App\Services;
 class ResultadoSincronizacionStock
 {
     /**
+     * @param  int  $actualizados  repuestos cuyo stock CAMBIO de valor
+     * @param  int  $sinCambio  repuestos que cruzaron pero ya tenian ese stock
      * @param  list<string>  $muestraItemNoNumerico  ejemplos de item no numerico que mando la API
      * @param  list<int>  $muestraSinCorrespondencia  ejemplos de item que el catalogo no tiene
      */
@@ -24,6 +26,7 @@ class ResultadoSincronizacionStock
         public readonly int $paginas,
         public readonly int $recibidos,
         public readonly int $actualizados,
+        public readonly int $sinCambio,
         public readonly int $sinCorrespondencia,
         public readonly int $sinItem,
         public readonly int $itemNoNumerico,
@@ -33,24 +36,62 @@ class ResultadoSincronizacionStock
         public readonly array $muestraSinCorrespondencia = [],
     ) {}
 
-    /**
-     * Frase para el toast del panel y para el mensaje flash. Se queda en los
-     * dos numeros que le importan a quien aprieta el boton: cuanto se actualizo
-     * y cuanto llego del ERP que el catalogo no tiene.
-     */
-    public function resumen(): string
+    /** Registros del ERP que encontraron su repuesto en el catalogo. */
+    public function emparejados(): int
     {
-        $inicio = $this->simulado
-            ? 'Simulacion terminada'
-            : 'Stock actualizado desde el ERP';
-
-        return $inicio.": {$this->actualizados} repuesto(s) actualizado(s), "
-            ."{$this->sinCorrespondencia} codigo(s) sin correspondencia en el catalogo "
-            ."({$this->paginas} pagina(s) leida(s)).";
+        return $this->actualizados + $this->sinCambio;
     }
 
     /**
-     * Contadores para el log y para la respuesta JSON del boton manual.
+     * Registros que el ERP mando y que NO terminaron en una escritura, sea cual
+     * sea el motivo: ya estaban al dia, no existen en el catalogo, o venian sin
+     * item, con item no numerico o sin cantidad.
+     */
+    public function noActualizados(): int
+    {
+        return max(0, $this->recibidos - $this->actualizados);
+    }
+
+    /**
+     * Frase para el toast del panel y para el mensaje flash.
+     *
+     * NO ES UNA SOLA FRASE CON NUMEROS DENTRO, Y ESA ES LA GRACIA: un
+     * "0 repuesto(s) actualizado(s)" no dice si el ERP no mando nada, si nada
+     * cruzo con el catalogo o si simplemente el stock ya estaba al dia, que son
+     * tres situaciones distintas —dos averias y una normalidad— y quien aprieta
+     * el boton no tiene el log a mano para distinguirlas. Cada caso trae su
+     * propia frase.
+     */
+    public function resumen(): string
+    {
+        $prefijo = $this->simulado ? 'Simulacion (no se escribio nada): ' : '';
+
+        if ($this->recibidos === 0) {
+            return $prefijo.'El ERP no devolvio ningun registro para la bodega y los criterios configurados, '
+                .'asi que no habia nada que actualizar. Revise api.id_bod, api.criterio y api.criterio_2.';
+        }
+
+        if ($this->emparejados() === 0) {
+            return $prefijo."Ninguno de los {$this->recibidos} registro(s) que devolvio el ERP corresponde a un "
+                .'repuesto del catalogo, asi que no se actualizo ninguno. '
+                ."Sin correspondencia: {$this->sinCorrespondencia}.";
+        }
+
+        if ($this->actualizados === 0) {
+            return $prefijo."El stock ya estaba al dia: se revisaron {$this->emparejados()} repuesto(s) y ninguno "
+                ."cambio de existencia ({$this->sinCorrespondencia} codigo(s) del ERP no estan en el catalogo).";
+        }
+
+        $verbo = $this->simulado ? 'cambiarian' : 'cambiaron';
+
+        return $prefijo."{$this->actualizados} repuesto(s) {$verbo} de stock; {$this->sinCambio} ya estaban al dia y "
+            ."{$this->sinCorrespondencia} codigo(s) del ERP no estan en el catalogo "
+            ."({$this->recibidos} registro(s) en {$this->paginas} pagina(s)).";
+    }
+
+    /**
+     * Contadores para el log, para la bitacora y para la respuesta JSON del
+     * boton manual.
      *
      * @return array<string, int|bool>
      */
@@ -61,6 +102,8 @@ class ResultadoSincronizacionStock
             'paginas' => $this->paginas,
             'recibidos' => $this->recibidos,
             'actualizados' => $this->actualizados,
+            'no_actualizados' => $this->noActualizados(),
+            'sin_cambio' => $this->sinCambio,
             'sin_correspondencia' => $this->sinCorrespondencia,
             'sin_item' => $this->sinItem,
             'item_no_numerico' => $this->itemNoNumerico,

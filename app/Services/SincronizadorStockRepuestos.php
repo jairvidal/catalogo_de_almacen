@@ -84,7 +84,32 @@ class SincronizadorStockRepuestos
     /** Cuantos ejemplos se listan en el log de cada anomalia, para poder diagnosticar. */
     private const MUESTRA = 10;
 
-    public function __construct(private readonly LectorInventarioErp $lector) {}
+    /**
+     * Diferencia a partir de la cual dos existencias se consideran distintas.
+     *
+     * repuestos.stock es decimal(12,3): media milesima es la mitad del ultimo
+     * decimal que la columna sabe guardar. Comparar con === seria un error de
+     * bulto —son floats— y comparar sin margen dejaria un item que el ERP
+     * reporta como 12.5001 reescribiendose en cada corrida contra el 12.500 que
+     * la base pudo almacenar, para siempre y sin cambiar nada.
+     */
+    private const TOLERANCIA = 0.0005;
+
+    /**
+     * Zona en la que se le muestran las fechas al administrador.
+     *
+     * Los datos siguen guardandose y calculandose en la zona de la aplicacion
+     * (UTC): esto es SOLO presentacion. Sin esto el panel decia "Ultima corrida:
+     * 11:38 pm" para una corrida que en Colombia ocurrio a las 6:38 pm, y el
+     * administrador leia esa hora imposible como que la marca no se habia
+     * movido.
+     */
+    private const ZONA_VISIBLE = 'America/Bogota';
+
+    public function __construct(
+        private readonly LectorInventarioErp $lector,
+        private readonly BitacoraSincronizacionStock $bitacora,
+    ) {}
 
     /**
      * Corre la sincronizacion completa.
@@ -192,13 +217,24 @@ class SincronizadorStockRepuestos
         return $minutos < 1 ? self::MINUTOS_POR_DEFECTO : $minutos;
     }
 
+    /**
+     * Ultima corrida, EN HORA DE COLOMBIA (ver ZONA_VISIBLE). La marca guardada
+     * es un timestamp unix, o sea que no cambia de valor: lo unico que cambia
+     * es la zona en la que se lee para pintarla.
+     */
     public function ultimaCorrida(): ?Carbon
     {
         $marca = Cache::get(self::CLAVE_ULTIMA_CORRIDA);
 
         return is_numeric($marca)
-            ? Carbon::createFromTimestamp((int) $marca, config('app.timezone'))
+            ? Carbon::createFromTimestamp((int) $marca, self::ZONA_VISIBLE)
             : null;
+    }
+
+    /** Como se pinta la ultima corrida en el panel. Un solo formato para la vista y para el JSON del boton. */
+    public function ultimaCorridaFormateada(): ?string
+    {
+        return $this->ultimaCorrida()?->format('d/m/Y h:i a');
     }
 
     /** Cuando le toca a la proxima corrida automatica, o null si nunca ha corrido. */
@@ -212,10 +248,14 @@ class SincronizadorStockRepuestos
     {
         $lectura = $this->lector->leer();
 
-        [$porCantidad, $emparejados, $sinCorrespondencia] = $this->cruzarContraElCatalogo($lectura->existencias);
+        [$porCantidad, $porCambiar, $sinCambio, $sinCorrespondencia] =
+            $this->cruzarContraElCatalogo($lectura->existencias);
 
-        $actualizados = ($simular || $emparejados === 0)
-            ? $emparejados
+        // Simulando se reporta lo que cambiaria; escribiendo, lo que la base
+        // dice que cambio de verdad. Los dos numeros deben coincidir, y si no
+        // coinciden la fuente de verdad es la base.
+        $actualizados = ($simular || $porCambiar === 0)
+            ? $porCambiar
             : $this->escribirStock($porCantidad);
 
         $resultado = new ResultadoSincronizacionStock(
@@ -223,6 +263,7 @@ class SincronizadorStockRepuestos
             paginas: $lectura->paginas,
             recibidos: $lectura->recibidos,
             actualizados: $actualizados,
+            sinCambio: $sinCambio,
             sinCorrespondencia: count($sinCorrespondencia),
             sinItem: $lectura->sinItem,
             itemNoNumerico: $lectura->itemNoNumerico,
@@ -233,6 +274,12 @@ class SincronizadorStockRepuestos
         );
 
         Log::info('Sincronizacion de stock terminada.', $resultado->contadores());
+
+        // Una simulacion no deja rastro en ninguna parte: ni en el stock, ni en
+        // la marca de la ultima corrida, ni en la bitacora.
+        if (! $simular) {
+            $this->bitacora->registrar($resultado);
+        }
 
         if ($sinCorrespondencia !== []) {
             // Son codigos de inventario, no datos sensibles, y sin ellos no hay
@@ -247,7 +294,16 @@ class SincronizadorStockRepuestos
     }
 
     /**
-     * Cruza lo que mando el ERP contra el catalogo y agrupa por cantidad.
+     * Cruza lo que mando el ERP contra el catalogo, separa lo que de verdad
+     * cambia de lo que ya estaba al dia y agrupa por cantidad lo primero.
+     *
+     * POR QUE SE COMPARA CONTRA EL STOCK QUE YA HAY: un UPDATE en SQL Server
+     * reporta como afectadas TODAS las filas que empareja, cambien o no de
+     * valor, asi que sin esta comparacion "actualizados" era en realidad
+     * "escritos" y decia 7.092 tanto cuando el ERP traia novedades como cuando
+     * no habia movido un solo item. El administrador no podia distinguir una
+     * corrida util de una corrida en vacio. De paso deja de reescribir miles de
+     * filas identicas —y de tocarles updated_at— en cada corrida.
      *
      * EL CRUCE VA POR LOTES CONTRA LA BASE, no trayendo el catalogo a memoria.
      * La tabla pasó de 591 a 28.490 filas: un pluck('codigo') cargaria las
@@ -266,30 +322,45 @@ class SincronizadorStockRepuestos
      * 12.9 acabarian en el mismo grupo y se escribiria una existencia falsa.
      *
      * @param  array<int, float>  $existencias  codigo => cantidad
-     * @return array{0: array<string, array{cantidad: float, codigos: list<int>}>, 1: int, 2: list<int>}
+     * @return array{0: array<string, array{cantidad: float, codigos: list<int>}>, 1: int, 2: int, 3: list<int>}
      */
     private function cruzarContraElCatalogo(array $existencias): array
     {
         /** @var array<string, array{cantidad: float, codigos: list<int>}> $porCantidad */
         $porCantidad = [];
-        $emparejados = 0;
+        $porCambiar = 0;
+        $sinCambio = 0;
         /** @var list<int> $sinCorrespondencia */
         $sinCorrespondencia = [];
 
         foreach (array_chunk($existencias, self::LOTE, preserve_keys: true) as $lote) {
-            $enElCatalogo = array_flip(
-                Repuesto::query()
-                    ->whereIn('codigo', array_keys($lote))
-                    ->pluck('codigo')
-                    ->map(fn ($codigo): int => (int) $codigo)
-                    ->all()
-            );
+            // Se trae tambien el stock actual: es la misma consulta y el mismo
+            // indice, con una columna mas, y sin ella no hay como saber cual
+            // fila cambia de verdad.
+            $enElCatalogo = Repuesto::query()
+                ->whereIn('codigo', array_keys($lote))
+                ->pluck('stock', 'codigo')
+                ->mapWithKeys(fn ($stock, $codigo): array => [
+                    // Un stock nulo NO se convierte a 0: se deja en null para
+                    // que cuente como distinto de cualquier cantidad y la
+                    // primera corrida le escriba el valor del ERP.
+                    (int) $codigo => $stock === null ? null : (float) $stock,
+                ])
+                ->all();
 
             foreach ($lote as $codigo => $cantidad) {
-                if (! isset($enElCatalogo[$codigo])) {
+                if (! array_key_exists($codigo, $enElCatalogo)) {
                     // No se crea ningun repuesto: lo que el catalogo no tiene,
                     // se cuenta y se reporta.
                     $sinCorrespondencia[] = $codigo;
+
+                    continue;
+                }
+
+                $actual = $enElCatalogo[$codigo];
+
+                if ($actual !== null && abs($actual - $cantidad) < self::TOLERANCIA) {
+                    $sinCambio++;
 
                     continue;
                 }
@@ -298,11 +369,11 @@ class SincronizadorStockRepuestos
 
                 $porCantidad[$clave]['cantidad'] = $cantidad;
                 $porCantidad[$clave]['codigos'][] = $codigo;
-                $emparejados++;
+                $porCambiar++;
             }
         }
 
-        return [$porCantidad, $emparejados, $sinCorrespondencia];
+        return [$porCantidad, $porCambiar, $sinCambio, $sinCorrespondencia];
     }
 
     /**

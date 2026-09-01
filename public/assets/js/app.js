@@ -160,13 +160,21 @@
             if (respuesta.ok && datos.ok) {
                 mostrarAviso(datos.mensaje, 'success');
 
-                /* La tarjeta de estado (ultima corrida, proxima) la arma el
-                   servidor: se recarga cuando el aviso ya se alcanzo a leer. */
-                setTimeout(() => window.location.reload(), 4200);
-                return;
-            }
+                /* La fecha la formatea el servidor (en hora de Colombia) y se
+                   pinta aqui mismo: recargar la pagina borraba el aviso y
+                   dejaba al usuario cuatro segundos viendo la fecha vieja, que
+                   es justo lo que hacia pensar que la corrida no se registro. */
+                const marca = document.querySelector('[data-sincronizar-ultima]');
 
-            mostrarAviso(datos.mensaje ?? 'No se pudo actualizar el stock.', 'danger');
+                if (marca && datos.ultima) {
+                    marca.textContent = `Ultima corrida: ${datos.ultima}.`;
+                }
+
+                /* La corrida termino: el aviso de "en curso" ya no aplica. */
+                document.querySelector('[data-sincronizar-en-curso]')?.remove();
+            } else {
+                mostrarAviso(datos.mensaje ?? 'No se pudo actualizar el stock.', 'danger');
+            }
         } catch (error) {
             mostrarAviso('No se pudo conectar con el servidor. Intente de nuevo.', 'danger');
         }

@@ -62,8 +62,10 @@ class ParametroAdminController extends Controller
                 'es_manual' => $this->sincronizador->esManual(),
                 'en_curso' => $this->sincronizador->hayCorridaEnCurso(),
                 'minutos' => $this->sincronizador->minutosDeIntervalo(),
-                'ultima' => $this->sincronizador->ultimaCorrida(),
-                'proxima' => $this->sincronizador->proximaCorrida(),
+                // Las dos fechas van en hora de Colombia; la aplicacion
+                // calcula en UTC (ver SincronizadorStockRepuestos).
+                'ultima' => $this->sincronizador->ultimaCorridaFormateada(),
+                'proxima' => $this->sincronizador->proximaCorrida()?->format('d/m/Y h:i a'),
             ],
         ]);
     }
@@ -162,13 +164,19 @@ class ParametroAdminController extends Controller
             return $this->responder($request, false, $mensaje, 502);
         }
 
-        return $this->responder($request, true, $resultado->resumen(), 200, $resultado->contadores());
+        // La marca de la ultima corrida viaja de vuelta para que el panel pinte
+        // la fecha nueva sin recargar: el usuario aprieta el boton y ve la
+        // linea "Ultima corrida" moverse, que es la unica confirmacion visible
+        // de que la corrida quedo registrada.
+        return $this->responder($request, true, $resultado->resumen(), 200, $resultado->contadores() + [
+            'ultima' => $this->sincronizador->ultimaCorridaFormateada(),
+        ]);
     }
 
     /**
      * JSON para el boton del panel, flash para un envio sin JavaScript.
      *
-     * @param  array<string, int|bool>  $datos  contadores; nunca lleva credenciales.
+     * @param  array<string, int|bool|string|null>  $datos  contadores y fecha; nunca lleva credenciales.
      */
     private function responder(
         Request $request,

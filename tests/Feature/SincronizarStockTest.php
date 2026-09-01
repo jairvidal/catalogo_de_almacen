@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Parametro;
 use App\Models\Repuesto;
+use App\Services\BitacoraSincronizacionStock;
 use App\Services\InventarioApiSidocsa;
 use App\Services\SincronizadorStockRepuestos;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
@@ -36,9 +38,8 @@ class SincronizarStockTest extends TestCase
         $this->parametro('tiempo.actualizar', '60');
         $this->parametro('api.id_bod', 'P2ALM');
         $this->parametro('api.id_cia', '1');
-        // Los dos criterios son listas separadas por coma. criterio_2 entra con
-        // el espacio final a proposito: es el caso que no se puede recortar.
-        $this->parametro(Parametro::API_CRITERIO_2, 'SEGURIDAD ');
+        // Los dos criterios son listas de IDs numericos separados por coma.
+        $this->parametro(Parametro::API_CRITERIO_2, '2002');
         $this->parametro(Parametro::API_CRITERIO, '');
         // El modo por defecto es automatico: es el que deja correr la tarea.
         $this->parametro(Parametro::INV_ACTUALIZAR, Parametro::INV_AUTOMATICO);
@@ -146,8 +147,9 @@ class SincronizarStockTest extends TestCase
         Http::fake([
             '*/api/v1/token' => Http::response(['token' => 'token-1']),
             '*/api/v1/inventario/consultar' => Http::sequence()
-                // Pagina llena: obliga a pedir la siguiente.
-                ->push(['data' => $this->filas(InventarioApiSidocsa::CANT_PAGE)])
+                // Pagina llena: obliga a pedir la siguiente. El tamano de pagina
+                // es el mismo numero que viaja en `cant` (una sola constante).
+                ->push(['data' => $this->filas(InventarioApiSidocsa::TAMANO_PAGINA)])
                 // Pagina incompleta: aqui corta el recorrido.
                 ->push(['data' => [['item' => (string) $codigo, 'cant_disp' => 42]]]),
         ]);
@@ -223,6 +225,260 @@ class SincronizarStockTest extends TestCase
         $this->assertSame(4.0, Repuesto::where('codigo', $codigo)->value('stock'));
         // Una simulacion tampoco consume el turno de la proxima corrida.
         $this->assertNull(Cache::get(SincronizadorStockRepuestos::CLAVE_ULTIMA_CORRIDA));
+    }
+
+    /**
+     * El numero que ve el administrador tiene que ser el de los repuestos que
+     * CAMBIARON, no el de las filas que la sentencia toco: en SQL Server un
+     * UPDATE reporta como afectadas todas las que empareja, cambien o no, y con
+     * ese numero una corrida en vacio se veia igual que una con novedades.
+     */
+    public function test_una_segunda_corrida_sin_novedades_no_cuenta_actualizados(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        $this->repuesto($codigo, existencia: 7, stock: 0);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $sincronizador = app(SincronizadorStockRepuestos::class);
+
+        $primera = $sincronizador->sincronizar();
+        $this->assertSame(1, $primera->actualizados);
+        $this->assertSame(0, $primera->sinCambio);
+
+        $segunda = $sincronizador->sincronizar();
+
+        $this->assertSame(0, $segunda->actualizados);
+        $this->assertSame(1, $segunda->sinCambio);
+        $this->assertSame(1, $segunda->emparejados());
+        // Y el mensaje lo dice con todas las letras, en vez de un "0" mudo.
+        $this->assertStringContainsString('ya estaba al dia', $segunda->resumen());
+        $this->assertSame(250.0, Repuesto::where('codigo', $codigo)->value('stock'));
+    }
+
+    /**
+     * Un cero por falta de cruce y un cero porque no hay novedades son dos
+     * cosas distintas: una es una averia de configuracion y la otra es la
+     * normalidad. El mensaje tiene que separarlas.
+     */
+    public function test_el_mensaje_distingue_no_cruzar_de_no_tener_novedades(): void
+    {
+        $fantasma = $this->codigoDePrueba();
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $fantasma, 'cant_disp' => 3],
+            ]]),
+        ]);
+
+        $resultado = app(SincronizadorStockRepuestos::class)->sincronizar();
+
+        $this->assertSame(0, $resultado->actualizados);
+        $this->assertSame(0, $resultado->sinCambio);
+        $this->assertSame(1, $resultado->sinCorrespondencia);
+        $this->assertStringContainsString('corresponde a un repuesto del catalogo', $resultado->resumen());
+        $this->assertStringNotContainsString('ya estaba al dia', $resultado->resumen());
+    }
+
+    /** Sin registros del ERP el aviso apunta a los parametros del filtro, no a un "0" sin explicacion. */
+    public function test_el_mensaje_avisa_cuando_el_erp_no_devuelve_nada(): void
+    {
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => []]),
+        ]);
+
+        $resultado = app(SincronizadorStockRepuestos::class)->sincronizar();
+
+        $this->assertSame(0, $resultado->recibidos);
+        $this->assertStringContainsString('no devolvio ningun registro', $resultado->resumen());
+        $this->assertStringContainsString('api.criterio', $resultado->resumen());
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bitacora storage/logs/sincronizacion.txt
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_cada_corrida_anexa_una_linea_a_la_bitacora(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        $this->repuesto($codigo, existencia: 7, stock: 0);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $previo = $this->bitacoraGuardada();
+
+        try {
+            $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+            $primera = $this->lineasNuevasDeLaBitacora($previo);
+
+            $this->assertCount(1, $primera);
+            $this->assertStringContainsString('actualizados: 1', $primera[0]);
+            $this->assertStringContainsString('no actualizados: 0', $primera[0]);
+            $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \|/', $primera[0]);
+
+            // Se ANEXA: la segunda corrida no borra la primera y deja ver que
+            // esta vez no hubo novedades.
+            $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+            $ambas = $this->lineasNuevasDeLaBitacora($previo);
+
+            $this->assertCount(2, $ambas);
+            $this->assertStringContainsString('actualizados: 0', $ambas[1]);
+            $this->assertStringContainsString('ya al dia: 1', $ambas[1]);
+        } finally {
+            $this->restaurarBitacora($previo);
+        }
+    }
+
+    /** Una simulacion no deja rastro en ninguna parte, tampoco en la bitacora. */
+    public function test_simular_no_escribe_la_bitacora(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        $this->repuesto($codigo, existencia: 7, stock: 0);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $previo = $this->bitacoraGuardada();
+
+        try {
+            $this->artisan('repuestos:sincronizar-stock', ['--simular' => true])->assertSuccessful();
+
+            $this->assertSame([], $this->lineasNuevasDeLaBitacora($previo));
+        } finally {
+            $this->restaurarBitacora($previo);
+        }
+    }
+
+    /** Ni la credencial ni el token pueden acabar en un archivo que alguien abre con el bloc de notas. */
+    public function test_la_bitacora_no_lleva_credenciales(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        $this->repuesto($codigo, existencia: 7, stock: 0);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-secreto']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $previo = $this->bitacoraGuardada();
+
+        try {
+            $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+            $linea = implode('', $this->lineasNuevasDeLaBitacora($previo));
+
+            $this->assertStringNotContainsString('CODIGO-DE-PRUEBA', $linea);
+            $this->assertStringNotContainsString('token-secreto', $linea);
+        } finally {
+            $this->restaurarBitacora($previo);
+        }
+    }
+
+    /**
+     * Un fallo al escribir la bitacora no puede tumbar una sincronizacion que
+     * ya escribio el stock; mismo criterio que el correo de "pedido listo".
+     *
+     * Se provoca de verdad, no con un doble: en el lugar del archivo se pone
+     * una carpeta, de modo que file_put_contents no pueda escribir.
+     */
+    public function test_un_fallo_de_la_bitacora_no_tumba_la_sincronizacion(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        $this->repuesto($codigo, existencia: 7, stock: 0);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $previo = $this->bitacoraGuardada();
+        $ruta = app(BitacoraSincronizacionStock::class)->ruta();
+
+        if (file_exists($ruta)) {
+            unlink($ruta);
+        }
+
+        mkdir($ruta);
+        Log::spy();
+
+        try {
+            $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+        } finally {
+            rmdir($ruta);
+            $this->restaurarBitacora($previo);
+        }
+
+        // El stock quedo escrito y el fallo de la bitacora quedo en el log.
+        $this->assertSame(250.0, Repuesto::where('codigo', $codigo)->value('stock'));
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $mensaje): bool => str_contains($mensaje, 'bitacora de sincronizacion'))
+            ->once();
+    }
+
+    /** Contenido actual de la bitacora, para poder devolverla como estaba. */
+    private function bitacoraGuardada(): ?string
+    {
+        $ruta = app(BitacoraSincronizacionStock::class)->ruta();
+
+        return file_exists($ruta) ? file_get_contents($ruta) : null;
+    }
+
+    /**
+     * Lineas que la corrida anadio al final de la bitacora.
+     *
+     * @return list<string>
+     */
+    private function lineasNuevasDeLaBitacora(?string $previo): array
+    {
+        $ruta = app(BitacoraSincronizacionStock::class)->ruta();
+
+        if (! file_exists($ruta)) {
+            return [];
+        }
+
+        $contenido = file_get_contents($ruta);
+        $nuevo = $previo === null ? $contenido : substr($contenido, strlen($previo));
+
+        return array_values(array_filter(
+            preg_split('/\R/', $nuevo) ?: [],
+            fn (string $linea): bool => str_contains($linea, 'actualizados:')
+        ));
+    }
+
+    private function restaurarBitacora(?string $previo): void
+    {
+        $ruta = app(BitacoraSincronizacionStock::class)->ruta();
+
+        if ($previo === null) {
+            if (file_exists($ruta)) {
+                unlink($ruta);
+            }
+
+            return;
+        }
+
+        file_put_contents($ruta, $previo, LOCK_EX);
     }
 
     /**
@@ -416,10 +672,11 @@ class SincronizarStockTest extends TestCase
     */
 
     /**
-     * La carga inicial escribe UNICAMENTE lo que confirma la API. `stock` no
-     * sirve como origen: arrastra los valores de la carga masiva del ERP, donde
-     * miles de filas traen un punto de reposicion en vez de una existencia real,
-     * y copiarlos daria saldo a repuestos que no lo tienen.
+     * Esta via de la carga inicial escribe UNICAMENTE lo que confirma la API:
+     * un repuesto con stock alto que el ERP no reporta no recibe saldo. Copiar
+     * `stock` es la OTRA via (repuestos:inicializar-existencia-desde-stock, ver
+     * InicializarExistenciaDesdeStockTest), con el riesgo de los puntos de
+     * reposicion asumido a proposito; aqui ese origen sigue sin usarse.
      */
     public function test_la_inicializacion_solo_escribe_lo_que_reporta_la_api(): void
     {
@@ -567,36 +824,62 @@ class SincronizarStockTest extends TestCase
 
     /**
      * El contrato del endpoint: criterio (SUBGRUPO) y criterio_2 (GRUPO) viajan
-     * como arreglos JSON, y el administrador los configura como una lista
-     * separada por comas.
+     * como arreglos JSON de IDs NUMERICOS, y el administrador los configura como
+     * una lista separada por comas.
      */
     public function test_criterio_y_criterio_2_viajan_como_arreglos(): void
     {
-        $grupos = 'ELECTRICO,MATERIAS PRIMAS,FERRETERIA,HIDRAULICA Y NEUMATICA,MANGUERAS Y ACCESORIOS';
-        $this->parametro(Parametro::API_CRITERIO_2, $grupos);
-        $this->parametro(Parametro::API_CRITERIO, 'TORNILLERIA');
+        $this->parametro(Parametro::API_CRITERIO_2, '2002,2010,2013,2014');
+        $this->parametro(Parametro::API_CRITERIO, '3038,1230');
 
         $cuerpo = $this->cuerpoDeLaConsulta();
 
-        $this->assertSame([
-            'ELECTRICO',
-            'MATERIAS PRIMAS',
-            'FERRETERIA',
-            'HIDRAULICA Y NEUMATICA',
-            'MANGUERAS Y ACCESORIOS',
-        ], $cuerpo['criterio_2']);
-        $this->assertSame(['TORNILLERIA'], $cuerpo['criterio']);
+        $this->assertSame([2002, 2010, 2013, 2014], $cuerpo['criterio_2']);
+        $this->assertSame([3038, 1230], $cuerpo['criterio']);
 
         // El resto del cuerpo acordado con el ERP, para que un cambio en los
         // criterios no se lleve por delante lo demas. id_bod e id_cia salen de
         // los parametros que siembra setUp().
-        $this->assertSame('500', $cuerpo['cant']);
-        $this->assertSame('100', $cuerpo['cant_page']);
+        $this->assertSame(InventarioApiSidocsa::TAMANO_PAGINA, $cuerpo['cant']);
+        $this->assertSame(1, $cuerpo['page']);
         $this->assertSame('INV1455', $cuerpo['tipo_inv']);
         $this->assertSame('P2ALM', $cuerpo['id_bod']);
         $this->assertSame('1', $cuerpo['id_cia']);
-        $this->assertSame('1', $cuerpo['page']);
         $this->assertSame(1, $cuerpo['existencias']);
+
+        // cant_page desaparecio del cuerpo: el tamano de pagina lo fija `cant`.
+        $this->assertArrayNotHasKey('cant_page', $cuerpo);
+    }
+
+    /**
+     * cant y page son numeros JSON, no cadenas entrecomilladas; id_cia, id_bod y
+     * tipo_inv siguen siendo cadenas. Se comprueba sobre el JSON crudo porque
+     * data() no distingue "1000" de 1000 al leerlo de vuelta.
+     */
+    public function test_cant_y_page_viajan_como_numeros_y_los_ids_como_cadenas(): void
+    {
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => []]),
+        ]);
+
+        $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+
+        Http::assertSent(function ($peticion) {
+            if (! str_contains($peticion->url(), 'inventario/consultar')) {
+                return false;
+            }
+
+            $cuerpo = $peticion->body();
+
+            return str_contains($cuerpo, '"cant":'.InventarioApiSidocsa::TAMANO_PAGINA)
+                && str_contains($cuerpo, '"page":1')
+                && str_contains($cuerpo, '"existencias":1')
+                && str_contains($cuerpo, '"id_cia":"1"')
+                && str_contains($cuerpo, '"id_bod":"P2ALM"')
+                && str_contains($cuerpo, '"tipo_inv":"INV1455"')
+                && ! str_contains($cuerpo, 'cant_page');
+        });
     }
 
     /**
@@ -629,34 +912,65 @@ class SincronizarStockTest extends TestCase
     }
 
     /**
-     * El valor se guarda literal (col_valor esta fuera de TrimStrings), asi que
-     * al partir la lista NO se le hace trim a cada elemento: un grupo que
-     * legitimamente termine en espacio tiene que llegar con ese espacio a la
-     * API. Lo unico que se descarta son los elementos vacios.
+     * Los criterios son IDs, asi que listaEnteros() SI le hace trim a cada
+     * elemento (la razon para no hacerlo era el nombre de grupo con espacio
+     * significativo, y un ID no lo tiene) y descarta los elementos vacios.
      */
-    public function test_la_lista_conserva_los_espacios_y_descarta_los_elementos_vacios(): void
+    public function test_la_lista_de_ids_recorta_los_espacios_y_descarta_los_vacios(): void
     {
-        $this->parametro(Parametro::API_CRITERIO_2, 'SEGURIDAD ,,ELECTRICO,');
+        $this->parametro(Parametro::API_CRITERIO_2, ' 2002 ,,2010,');
 
         $this->assertSame(
-            ['SEGURIDAD ', 'ELECTRICO'],
-            Parametro::lista(Parametro::API_CRITERIO_2)
+            [2002, 2010],
+            Parametro::listaEnteros(Parametro::API_CRITERIO_2)
         );
 
         $this->assertSame(
-            ['SEGURIDAD ', 'ELECTRICO'],
+            [2002, 2010],
             $this->cuerpoDeLaConsulta()['criterio_2']
         );
     }
 
     /**
-     * Parametro::lista() lee por Parametro::valor(), o sea que respeta el
-     * estado: un criterio inactivo es un filtro que no se aplica, no un valor
-     * que se cuela.
+     * Un elemento que no sea numerico se descarta y NO se cuela como 0: (int)
+     * 'ELECTRICO' seria 0, que para la API es un filtro valido y traeria el
+     * universo equivocado. Es el caso de una instalacion que venga de la version
+     * anterior, donde el valor todavia trae nombres de grupo.
+     */
+    public function test_un_criterio_no_numerico_se_descarta_y_no_viaja_como_cero(): void
+    {
+        $this->parametro(Parametro::API_CRITERIO_2, 'ELECTRICO,2002,MATERIAS PRIMAS');
+
+        $this->assertSame(
+            [2002],
+            Parametro::listaEnteros(Parametro::API_CRITERIO_2)
+        );
+
+        $this->assertSame([2002], $this->cuerpoDeLaConsulta()['criterio_2']);
+    }
+
+    /**
+     * Y si TODOS los elementos son texto, el criterio viaja vacio: la consulta
+     * sale sin filtro de grupo, que es exactamente el fallo que el Log::warning
+     * de listaEnteros() tiene que dejar visible.
+     */
+    public function test_un_criterio_todo_texto_queda_vacio(): void
+    {
+        $this->parametro(Parametro::API_CRITERIO_2, 'ELECTRICO,MATERIAS PRIMAS');
+
+        $this->assertSame([], Parametro::listaEnteros(Parametro::API_CRITERIO_2));
+        $this->assertSame([], $this->cuerpoDeLaConsulta()['criterio_2']);
+    }
+
+    /**
+     * Parametro::listaEnteros() lee por lista(), que lee por valor(): respeta el
+     * estado. Un criterio inactivo es un filtro que no se aplica, no un valor
+     * que se cuela. El valor es numerico a proposito, para que lo unico que lo
+     * deje fuera sea el estado.
      */
     public function test_un_criterio_inactivo_no_viaja(): void
     {
-        $criterio = $this->parametro(Parametro::API_CRITERIO_2, 'ELECTRICO');
+        $criterio = $this->parametro(Parametro::API_CRITERIO_2, '2002');
         $criterio->col_estado = Parametro::ESTADO_INACTIVO;
         $criterio->save();
 

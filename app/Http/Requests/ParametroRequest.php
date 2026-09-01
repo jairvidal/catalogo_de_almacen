@@ -24,6 +24,7 @@ class ParametroRequest extends FormRequest
         // parametros del sistema), asi que aqui ya se sabe si el valor es de
         // lista cerrada.
         $opciones = Parametro::opcionesDe((string) $this->input('col_nombre'));
+        $esListaEntera = Parametro::esListaEntera((string) $this->input('col_nombre'));
 
         return [
             'col_nombre' => [
@@ -34,16 +35,21 @@ class ParametroRequest extends FormRequest
                 'regex:/^[a-z][a-z0-9_.]*$/',
                 Rule::unique('tbl_parametro', 'col_nombre')->ignore($parametroId),
             ],
-            // Un parametro de lista cerrada (inv.actualizar) se valida contra
-            // sus opciones EN EL SERVIDOR: el radio del formulario es comodidad
-            // para el administrador, no la barrera. Cualquier otro parametro
-            // admite texto libre y va con 'present' y no 'required', porque un
-            // valor de solo espacios es legitimo (ver api.criterio_2) y
-            // 'required' lo rechazaria: Laravel le hace trim antes de comparar
-            // contra vacio.
-            'col_valor' => $opciones === []
-                ? ['present', 'string', 'max:255']
-                : ['required', 'string', Rule::in(array_keys($opciones))],
+            // Tres casos, y los tres se deciden EN EL SERVIDOR; lo que hace el
+            // formulario (radios, ayuda del campo) es comodidad, no la barrera:
+            //  - lista cerrada (inv.actualizar): solo sus opciones.
+            //  - lista de IDs numericos (api.criterio, api.criterio_2): digitos
+            //    separados por coma, con espacios alrededor permitidos porque
+            //    Parametro::listaEnteros() recorta cada elemento. El vacio pasa:
+            //    significa "sin filtro".
+            //  - cualquier otro: texto libre, con 'present' y no 'required'
+            //    porque un valor de solo espacios es legitimo y 'required' lo
+            //    rechazaria (Laravel le hace trim antes de comparar contra vacio).
+            'col_valor' => match (true) {
+                $opciones !== [] => ['required', 'string', Rule::in(array_keys($opciones))],
+                $esListaEntera => ['present', 'string', 'max:255', 'regex:/^\s*\d*\s*(,\s*\d*\s*)*$/'],
+                default => ['present', 'string', 'max:255'],
+            },
             'col_estado' => ['required', Rule::in(array_keys(Parametro::ESTADOS))],
             'col_descripcion' => ['nullable', 'string', 'max:255'],
         ];
@@ -69,6 +75,8 @@ class ParametroRequest extends FormRequest
     {
         return [
             'col_nombre.regex' => 'El nombre solo admite minusculas, numeros, punto y guion bajo, y debe empezar por letra.',
+            'col_valor.regex' => 'Este parametro es una lista de IDs numericos separados por coma (ej: 3038,1230). '
+                .'Los nombres de grupo o subgrupo ya no los acepta la API de inventario.',
         ];
     }
 
@@ -79,8 +87,10 @@ class ParametroRequest extends FormRequest
 
         $this->merge([
             'col_nombre' => strtolower(trim((string) $this->input('col_nombre'))),
-            // El valor NO se recorta: hay parametros cuyo espacio final viaja a
-            // la API y es significativo (ver api.criterio_2 en ParametroSeeder).
+            // El valor NO se recorta: hay parametros cuyo espacio final es
+            // significativo y recortarlo cambiaria la consulta en silencio. Los
+            // criterios de la API ya no son de esos (son IDs y listaEnteros()
+            // los recorta), pero la regla general se mantiene.
             'col_valor' => $valor === null ? '' : (string) $valor,
         ]);
 

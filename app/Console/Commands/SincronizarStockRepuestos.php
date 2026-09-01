@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Exceptions\SincronizacionEnCursoException;
+use App\Services\BitacoraSincronizacionStock;
 use App\Services\InventarioApiSidocsa;
 use App\Services\ResultadoSincronizacionStock;
 use App\Services\SincronizadorStockRepuestos;
@@ -26,8 +27,10 @@ class SincronizarStockRepuestos extends Command
 
     protected $description = 'Actualiza repuestos.stock con la existencia que reporta la API de inventario de Sidocsa';
 
-    public function handle(SincronizadorStockRepuestos $sincronizador): int
-    {
+    public function handle(
+        SincronizadorStockRepuestos $sincronizador,
+        BitacoraSincronizacionStock $bitacora,
+    ): int {
         $simular = (bool) $this->option('simular');
 
         $this->info($simular
@@ -68,7 +71,11 @@ class SincronizarStockRepuestos extends Command
 
         if ($simular) {
             $this->newLine();
-            $this->comment('Simulacion: no se escribio nada. Repita sin --simular para aplicar.');
+            $this->comment('Simulacion: no se escribio nada, ni en el stock ni en la bitacora. '
+                .'Repita sin --simular para aplicar.');
+        } else {
+            $this->newLine();
+            $this->line('Bitacora: '.$bitacora->ruta());
         }
 
         return self::SUCCESS;
@@ -82,14 +89,18 @@ class SincronizarStockRepuestos extends Command
             ['Paginas leidas', $resultado->paginas],
             ['Registros recibidos', $resultado->recibidos],
             [
-                $resultado->simulado ? 'Repuestos que se actualizarian' : 'Repuestos actualizados',
+                $resultado->simulado ? 'Repuestos que cambiarian de stock' : 'Repuestos con el stock cambiado',
                 $resultado->actualizados,
             ],
+            ['Repuestos que ya estaban al dia', $resultado->sinCambio],
+            ['Registros no actualizados (total)', $resultado->noActualizados()],
             ['Codigos sin correspondencia en el catalogo', $resultado->sinCorrespondencia],
             ['Registros sin el campo item', $resultado->sinItem],
             ['Registros con item no numerico', $resultado->itemNoNumerico],
             ['Registros sin cant_disp numerico', $resultado->sinCantidad],
         ]);
+
+        $this->line($resultado->resumen());
     }
 
     /**

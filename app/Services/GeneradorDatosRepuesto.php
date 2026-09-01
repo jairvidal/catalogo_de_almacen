@@ -7,9 +7,13 @@ namespace App\Services;
  *
  * El almacen todavia no entrego los nombres reales del catalogo, asi que lo
  * unico que existe por item es la foto. Esta clase produce un nombre, una
- * linea, una ubicacion y un stock estables: se derivan del crc32 del codigo,
- * de modo que el mismo codigo siempre da el mismo resultado y volver a correr
- * el seeder o la importacion no cambia lo que ya se mostro en el catalogo.
+ * linea, una ubicacion y una existencia estables: se derivan del crc32 del
+ * codigo, de modo que el mismo codigo siempre da el mismo resultado y volver a
+ * correr el seeder o la importacion no cambia lo que ya se mostro en el
+ * catalogo.
+ *
+ * La cantidad va en `existencia` (el saldo operativo del almacen) y NUNCA en
+ * `stock`, que es la columna que escribe la sincronizacion con el ERP.
  *
  * La usan RepuestoSeeder (carga inicial) e ImportadorImagenes (altas nuevas),
  * para que ambos caminos produzcan filas indistinguibles entre si.
@@ -99,7 +103,11 @@ class GeneradorDatosRepuesto
     /**
      * Fila lista para insertar, sin las marcas de tiempo ni categoria_id.
      *
-     * @return array{codigo: string, nombre: string, descripcion: null, categoria: string, ubicacion: string, unidad_medida: string, foto: string|null, cantidad_disponible: int, stock_minimo: int, activo: bool}
+     * `existencia` y `stock_minimo` son decimal(12,3) en la base; aqui salen
+     * enteros a proposito, que es un valor decimal valido, para no alterar lo
+     * que este generador ya produjo.
+     *
+     * @return array{codigo: string, nombre: string, descripcion: null, categoria: string, ubicacion: string, unidad_medida: string, foto: string|null, existencia: int, stock_minimo: int, activo: bool}
      */
     public function generar(string $codigo, ?string $nombreArchivo = null): array
     {
@@ -120,14 +128,14 @@ class GeneradorDatosRepuesto
             'ubicacion' => $ubicacion,
             'unidad_medida' => $unidad,
             'foto' => $nombreArchivo,
-            'cantidad_disponible' => $this->cantidad($semilla),
+            'existencia' => $this->cantidad($semilla),
             'stock_minimo' => $semilla % 6 + 2,
             'activo' => true,
         ];
     }
 
     /**
-     * Distribucion de stock: la mayoria con existencias, unos pocos agotados
+     * Distribucion de la existencia: la mayoria con saldo, unos pocos agotados
      * para poder probar el comportamiento del catalogo sin disponibilidad.
      */
     private function cantidad(int $semilla): int

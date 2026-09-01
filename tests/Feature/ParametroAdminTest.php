@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\InventarioApiSidocsa;
 use App\Services\SincronizadorStockRepuestos;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -124,8 +125,10 @@ class ParametroAdminTest extends TestCase
     }
 
     /**
-     * El caso de api.criterio_2: el espacio final es parte del valor y ni el
-     * formulario ni el lector lo pueden recortar.
+     * col_valor esta fuera del middleware TrimStrings: el espacio final es parte
+     * del valor y ni el formulario ni el lector lo pueden recortar. Sigue siendo
+     * la regla general para cualquier parametro de texto libre; los criterios de
+     * la API ya no dependen de ella porque son IDs numericos.
      */
     public function test_el_valor_conserva_los_espacios_del_final(): void
     {
@@ -266,7 +269,7 @@ class ParametroAdminTest extends TestCase
             'tiempo.actualizar' => '60',
             'api.id_bod' => 'P0001',
             'api.id_cia' => '1',
-            'api.criterio_2' => 'SEGURIDAD ',
+            'api.criterio_2' => '2002',
             Parametro::INV_ACTUALIZAR => $modo,
         ] as $nombre => $valor) {
             $parametro = Parametro::firstOrNew(['col_nombre' => $nombre]);
@@ -327,6 +330,67 @@ class ParametroAdminTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(Parametro::INV_MANUAL, $modo->refresh()->col_valor);
+    }
+
+    /**
+     * Los criterios de la API son IDs numericos: un nombre de grupo se rechaza
+     * EN EL SERVIDOR, no solo con la ayuda del formulario. Es lo que impide que
+     * el administrador deje la sincronizacion consultando sin filtro sin darse
+     * cuenta.
+     */
+    public function test_los_criterios_de_la_api_solo_aceptan_ids_numericos(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_AUTOMATICO);
+        $criterio = Parametro::where('col_nombre', Parametro::API_CRITERIO_2)->firstOrFail();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->put(route('admin.parametros.update', $criterio), [
+                'col_nombre' => $criterio->col_nombre,
+                'col_valor' => 'ELECTRICO,MATERIAS PRIMAS',
+                'col_estado' => Parametro::ESTADO_ACTIVO,
+                'col_descripcion' => $criterio->col_descripcion,
+            ])
+            ->assertSessionHasErrors('col_valor');
+
+        $this->assertSame('2002', $criterio->refresh()->col_valor);
+
+        // Una lista de IDs si entra, con espacios alrededor incluidos: los
+        // recorta Parametro::listaEnteros().
+        $this->actingAs($admin)
+            ->put(route('admin.parametros.update', $criterio), [
+                'col_nombre' => $criterio->col_nombre,
+                'col_valor' => '2002, 2010',
+                'col_estado' => Parametro::ESTADO_ACTIVO,
+                'col_descripcion' => $criterio->col_descripcion,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([2002, 2010], Parametro::listaEnteros(Parametro::API_CRITERIO_2));
+
+        // Y el vacio tambien: significa "sin filtro".
+        $this->actingAs($admin)
+            ->put(route('admin.parametros.update', $criterio), [
+                'col_nombre' => $criterio->col_nombre,
+                'col_valor' => '',
+                'col_estado' => Parametro::ESTADO_ACTIVO,
+                'col_descripcion' => $criterio->col_descripcion,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([], Parametro::listaEnteros(Parametro::API_CRITERIO_2));
+    }
+
+    public function test_el_formulario_dice_que_los_criterios_son_ids_numericos(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_AUTOMATICO);
+        $criterio = Parametro::where('col_nombre', Parametro::API_CRITERIO_2)->firstOrFail();
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.parametros.edit', $criterio))
+            ->assertOk()
+            ->assertSee('IDs numericos del ERP separados por coma')
+            ->assertSee('3038,1230');
     }
 
     public function test_el_formulario_pinta_radios_para_inv_actualizar(): void
@@ -416,6 +480,41 @@ class ParametroAdminTest extends TestCase
         // la de "en curso".
         $this->assertNotNull(Cache::get(SincronizadorStockRepuestos::CLAVE_ULTIMA_CORRIDA));
         $this->assertFalse(Cache::has(SincronizadorStockRepuestos::CLAVE_EN_CURSO));
+    }
+
+    /**
+     * La fecha de la corrida vuelve en el JSON y en hora de Colombia: es lo que
+     * app.js pinta en [data-sincronizar-ultima] para que el administrador vea
+     * moverse la marca sin recargar. Con la zona de la aplicacion (UTC) salia
+     * cinco horas adelantada y se leia como una fecha que no se habia movido.
+     */
+    public function test_la_sincronizacion_manual_devuelve_la_fecha_de_la_corrida(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_MANUAL);
+        $repuesto = $this->repuestoDePrueba(existencia: 7, stock: 0);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => $repuesto->codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $respuesta = $this->actingAs($this->admin())
+            ->postJson(route('admin.parametros.sincronizar'))
+            ->assertOk();
+
+        $marca = Cache::get(SincronizadorStockRepuestos::CLAVE_ULTIMA_CORRIDA);
+        $esperada = Carbon::createFromTimestamp((int) $marca, 'America/Bogota')->format('d/m/Y h:i a');
+
+        $respuesta->assertJson(['ok' => true, 'ultima' => $esperada]);
+
+        // Y el panel trae el nodo que app.js reescribe con esa fecha.
+        $this->actingAs($this->admin())
+            ->get(route('admin.parametros.index'))
+            ->assertOk()
+            ->assertSee('data-sincronizar-ultima', false)
+            ->assertSee($esperada);
     }
 
     /**
