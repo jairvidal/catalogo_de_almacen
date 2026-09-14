@@ -2,6 +2,15 @@
 
 @section('titulo', 'Categorias')
 
+@use('App\Models\Funcionalidad')
+
+@php
+    // Lo que el perfil no puede hacer se pinta en gris y deshabilitado; la
+    // ruta vuelve a negarlo con el middleware permiso.
+    $puedeEditar = auth()->user()->puede(Funcionalidad::CATEGORIAS, Funcionalidad::ACCION_EDITAR);
+    $puedeEliminar = auth()->user()->puede(Funcionalidad::CATEGORIAS, Funcionalidad::ACCION_ELIMINAR);
+@endphp
+
 @section('contenido')
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
@@ -11,9 +20,13 @@
                 Agrupan el catalogo publico. Cada una corresponde al color del marco impreso en la foto del repuesto.
             </p>
         </div>
-        <a href="{{ route('admin.categorias.create') }}" class="btn btn-marca">
-            <i class="bi bi-plus-lg me-1"></i>Nueva categoria
-        </a>
+        @if ($puedeEditar)
+            <a href="{{ route('admin.categorias.create') }}" class="btn btn-marca">
+                <i class="bi bi-plus-lg me-1"></i>Nueva categoria
+            </a>
+        @else
+            @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'plus-lg', 'texto' => 'Nueva categoria', 'clases' => 'btn-outline-secondary'])
+        @endif
     </div>
 
     @if ($sinCategoria > 0)
@@ -122,19 +135,27 @@
 
                             <td class="text-end pe-3">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('admin.categorias.edit', $categoria) }}"
-                                       class="btn btn-outline-secondary" title="Editar">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
+                                    @if ($puedeEditar)
+                                        <a href="{{ route('admin.categorias.edit', $categoria) }}"
+                                           class="btn btn-outline-secondary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    @else
+                                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'pencil'])
+                                    @endif
                                     @if ($categoria->col_activo)
-                                        <form method="POST" action="{{ route('admin.categorias.destroy', $categoria) }}"
-                                              data-confirmar="Anular la categoria {{ $categoria->col_nombre }}? No se podra asignar a nuevos repuestos.">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger" title="Anular">
-                                                <i class="bi bi-slash-circle"></i>
-                                            </button>
-                                        </form>
+                                        @if ($puedeEliminar)
+                                            <form method="POST" action="{{ route('admin.categorias.destroy', $categoria) }}"
+                                                  data-confirmar="Anular la categoria {{ $categoria->col_nombre }}? No se podra asignar a nuevos repuestos.">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline-danger" title="Anular">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            @include('admin.partials.accion-sin-permiso', ['accion' => 'eliminar', 'icono' => 'slash-circle'])
+                                        @endif
                                     @endif
                                 </div>
                             </td>

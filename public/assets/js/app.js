@@ -195,10 +195,113 @@
         }
     });
 
+    /* --- Filtros excluyentes (data-excluye="id-del-otro-campo") ---------- */
+
+    /* Mientras un campo tiene valor, el campo cuyo id nombra queda
+       deshabilitado, y un campo deshabilitado no viaja en el formulario. El
+       texto que explica el bloqueo es el elemento de aria-describedby del
+       campo bloqueado: se muestra solo mientras dura el bloqueo.
+
+       ORDEN: este bloque tiene que registrarse ANTES que el autoenvio. Los
+       listeners de un mismo elemento corren en el orden en que se agregaron, y
+       form.submit() arma los datos en el momento en que se llama: si el
+       autoenvio corriera primero, el otro campo todavia estaria habilitado y
+       viajarian los dos valores. */
+    function bloquearPorExclusion(campo) {
+        const otro = document.getElementById(campo.dataset.excluye);
+
+        if (!otro) {
+            return;
+        }
+
+        const bloqueado = campo.value !== '';
+        otro.disabled = bloqueado;
+
+        const ayuda = document.getElementById(otro.getAttribute('aria-describedby') ?? '');
+
+        if (ayuda) {
+            ayuda.hidden = !bloqueado;
+        }
+    }
+
+    document.querySelectorAll('[data-excluye]').forEach((campo) => {
+        /* El servidor ya pinta el estado correcto; se vuelve a aplicar al
+           cargar porque el navegador puede restaurar el valor de un select al
+           volver con "atras" sin restaurar el disabled. Un campo que llega
+           deshabilitado no manda sobre el otro. */
+        if (!campo.disabled) {
+            bloquearPorExclusion(campo);
+        }
+
+        campo.addEventListener('change', () => bloquearPorExclusion(campo));
+    });
+
     /* --- Autoenvio de filtros del catalogo ------------------------------- */
 
     document.querySelectorAll('[data-autoenviar]').forEach((campo) => {
         campo.addEventListener('change', () => campo.form?.submit());
+    });
+
+    /* --- Funciones por perfil (form[data-matriz-permisos]) --------------- */
+
+    /* Editar o eliminar implican ver: al marcarlos se marca ver, y al quitar
+       ver se quitan los otros dos. Es solo comodidad: PermisoService aplica la
+       misma regla al guardar y la base la sostiene con un CHECK. */
+    function pintarTarjetaPermiso(tarjeta) {
+        const marcada = [...tarjeta.querySelectorAll('[data-accion-permiso]')].some((casilla) => casilla.checked);
+        tarjeta.classList.toggle('con-permiso', marcada);
+    }
+
+    document.addEventListener('change', (evento) => {
+        const casilla = evento.target.closest('form[data-matriz-permisos] [data-accion-permiso]');
+
+        if (!casilla) {
+            return;
+        }
+
+        const tarjeta = casilla.closest('[data-tarjeta-permiso]');
+        const hermana = (accion) => tarjeta?.querySelector(`[data-accion-permiso="${accion}"]`);
+
+        if (casilla.checked && casilla.dataset.accionPermiso !== 'ver') {
+            const ver = hermana('ver');
+
+            if (ver) {
+                ver.checked = true;
+            }
+        }
+
+        if (!casilla.checked && casilla.dataset.accionPermiso === 'ver') {
+            ['editar', 'eliminar'].forEach((accion) => {
+                const otra = hermana(accion);
+
+                if (otra) {
+                    otra.checked = false;
+                }
+            });
+        }
+
+        if (tarjeta) {
+            pintarTarjetaPermiso(tarjeta);
+        }
+    });
+
+    /* "Seleccionar todo" y "Limpiar": solo cambian las casillas; nada se
+       guarda hasta apretar "Guardar permisos". */
+    document.addEventListener('click', (evento) => {
+        const boton = evento.target.closest('form[data-matriz-permisos] [data-permisos-marcar]');
+
+        if (!boton) {
+            return;
+        }
+
+        const formulario = boton.closest('form');
+        const marcar = boton.dataset.permisosMarcar === 'todo';
+
+        formulario.querySelectorAll('[data-accion-permiso]:not(:disabled)').forEach((casilla) => {
+            casilla.checked = marcar;
+        });
+
+        formulario.querySelectorAll('[data-tarjeta-permiso]').forEach(pintarTarjetaPermiso);
     });
 
     /* --- Controles + / - de cantidad ------------------------------------- */

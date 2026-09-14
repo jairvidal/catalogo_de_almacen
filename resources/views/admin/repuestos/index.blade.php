@@ -2,6 +2,15 @@
 
 @section('titulo', 'Catalogo e inventario')
 
+@use('App\Models\Funcionalidad')
+
+@php
+    // Lo que el perfil no puede hacer se pinta en gris y deshabilitado; la
+    // ruta vuelve a negarlo con el middleware permiso.
+    $puedeEditar = auth()->user()->puede(Funcionalidad::REPUESTOS, Funcionalidad::ACCION_EDITAR);
+    $puedeEliminar = auth()->user()->puede(Funcionalidad::REPUESTOS, Funcionalidad::ACCION_ELIMINAR);
+@endphp
+
 @section('contenido')
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
@@ -9,9 +18,13 @@
             <h1 class="h4 mb-1">Catalogo e inventario</h1>
             <p class="text-secondary mb-0 small">Administre los repuestos, sus fotos y las existencias.</p>
         </div>
-        <a href="{{ route('admin.repuestos.create') }}" class="btn btn-marca">
-            <i class="bi bi-plus-lg me-1"></i>Nuevo repuesto
-        </a>
+        @if ($puedeEditar)
+            <a href="{{ route('admin.repuestos.create') }}" class="btn btn-marca">
+                <i class="bi bi-plus-lg me-1"></i>Nuevo repuesto
+            </a>
+        @else
+            @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'plus-lg', 'texto' => 'Nuevo repuesto', 'clases' => 'btn-outline-secondary'])
+        @endif
     </div>
 
     {{-- Filtros rapidos --}}
@@ -100,19 +113,28 @@
                             <td class="small text-secondary">{{ $repuesto->desc_cat_1 ?? '—' }}</td>
 
                             <td>
-                                <form method="POST" action="{{ route('admin.repuestos.stock', $repuesto) }}"
-                                      class="d-flex gap-1 justify-content-center">
-                                    @csrf
-                                    @method('PATCH')
-                                    <input type="number" name="existencia"
-                                           class="form-control form-control-sm text-center
-                                                  {{ $repuesto->sin_stock ? 'border-danger' : ($repuesto->stock_bajo ? 'border-warning' : '') }}"
-                                           style="width:5.5rem"
-                                           value="{{ $repuesto->existencia }}" min="0" step="0.001" required>
-                                    <button type="submit" class="btn btn-sm btn-outline-marca" title="Guardar existencias">
-                                        <i class="bi bi-check-lg"></i>
-                                    </button>
-                                </form>
+                                @if ($puedeEditar)
+                                    <form method="POST" action="{{ route('admin.repuestos.stock', $repuesto) }}"
+                                          class="d-flex gap-1 justify-content-center">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input type="number" name="existencia"
+                                               class="form-control form-control-sm text-center
+                                                      {{ $repuesto->sin_stock ? 'border-danger' : ($repuesto->stock_bajo ? 'border-warning' : '') }}"
+                                               style="width:5.5rem"
+                                               value="{{ $repuesto->existencia }}" min="0" step="0.001" required>
+                                        <button type="submit" class="btn btn-sm btn-outline-marca" title="Guardar existencias">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </form>
+                                @else
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <input type="number" class="form-control form-control-sm text-center"
+                                               style="width:5.5rem" value="{{ $repuesto->existencia }}" disabled
+                                               aria-label="Existencias de {{ $repuesto->codigo }}">
+                                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'check-lg', 'clases' => 'btn-sm btn-outline-secondary'])
+                                    </div>
+                                @endif
                                 <div class="text-center small text-secondary mt-1">
                                     {{ $repuesto->unidad_medida }} &middot; min {{ $repuesto->stock_minimo }}
                                 </div>
@@ -124,19 +146,27 @@
                                        class="btn btn-outline-secondary" title="Ver en el catalogo">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ route('admin.repuestos.edit', $repuesto) }}"
-                                       class="btn btn-outline-secondary" title="Editar">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
+                                    @if ($puedeEditar)
+                                        <a href="{{ route('admin.repuestos.edit', $repuesto) }}"
+                                           class="btn btn-outline-secondary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    @else
+                                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'pencil'])
+                                    @endif
                                     @if ($repuesto->estaActivo())
-                                        <form method="POST" action="{{ route('admin.repuestos.destroy', $repuesto) }}"
-                                              data-confirmar="Desactivar {{ $repuesto->codigo }}? Dejara de aparecer en el catalogo publico.">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger" title="Desactivar">
-                                                <i class="bi bi-slash-circle"></i>
-                                            </button>
-                                        </form>
+                                        @if ($puedeEliminar)
+                                            <form method="POST" action="{{ route('admin.repuestos.destroy', $repuesto) }}"
+                                                  data-confirmar="Desactivar {{ $repuesto->codigo }}? Dejara de aparecer en el catalogo publico.">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline-danger" title="Desactivar">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            @include('admin.partials.accion-sin-permiso', ['accion' => 'eliminar', 'icono' => 'slash-circle'])
+                                        @endif
                                     @endif
                                 </div>
                             </td>

@@ -88,6 +88,9 @@
                                 </div>
                                 <div class="form-text">
                                     Sin esta marca el usuario entra al panel y solo despacha solicitudes.
+                                    Solo aplica mientras el rol no tenga sus permisos guardados en
+                                    <a href="{{ route('admin.permisos.index', array_filter(['rol_id' => $rol->id])) }}">Funciones por perfil</a>;
+                                    desde ese momento mandan los permisos de esa pantalla.
                                 </div>
                             </div>
 

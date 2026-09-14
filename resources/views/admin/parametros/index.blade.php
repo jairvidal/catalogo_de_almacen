@@ -2,6 +2,15 @@
 
 @section('titulo', 'Parametros')
 
+@use('App\Models\Funcionalidad')
+
+@php
+    // Lo que el perfil no puede hacer se pinta en gris y deshabilitado; la
+    // ruta vuelve a negarlo con el middleware permiso.
+    $puedeEditar = auth()->user()->puede(Funcionalidad::PARAMETROS, Funcionalidad::ACCION_EDITAR);
+    $puedeEliminar = auth()->user()->puede(Funcionalidad::PARAMETROS, Funcionalidad::ACCION_ELIMINAR);
+@endphp
+
 @section('contenido')
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
@@ -11,9 +20,13 @@
                 Configuracion que el sistema lee en caliente. Los parametros del sistema no se anulan.
             </p>
         </div>
-        <a href="{{ route('admin.parametros.create') }}" class="btn btn-marca">
-            <i class="bi bi-plus-lg me-1"></i>Nuevo parametro
-        </a>
+        @if ($puedeEditar)
+            <a href="{{ route('admin.parametros.create') }}" class="btn btn-marca">
+                <i class="bi bi-plus-lg me-1"></i>Nuevo parametro
+            </a>
+        @else
+            @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'plus-lg', 'texto' => 'Nuevo parametro', 'clases' => 'btn-outline-secondary'])
+        @endif
     </div>
 
     {{-- Estado de la sincronizacion de stock con el ERP.
@@ -65,12 +78,16 @@
             {{-- El boton solo existe en modo manual; el servidor lo vuelve a
                  comprobar antes de sincronizar. --}}
             @if ($sincronizacion['es_manual'])
-                <form method="POST" action="{{ route('admin.parametros.sincronizar') }}" data-sincronizar-stock>
-                    @csrf
-                    <button type="submit" class="btn btn-marca">
-                        <i class="bi bi-arrow-repeat me-1"></i>Actualizar
-                    </button>
-                </form>
+                @if ($puedeEditar)
+                    <form method="POST" action="{{ route('admin.parametros.sincronizar') }}" data-sincronizar-stock>
+                        @csrf
+                        <button type="submit" class="btn btn-marca">
+                            <i class="bi bi-arrow-repeat me-1"></i>Actualizar
+                        </button>
+                    </form>
+                @else
+                    @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'arrow-repeat', 'texto' => 'Actualizar', 'clases' => 'btn-outline-secondary'])
+                @endif
             @endif
         </div>
     </div>
@@ -170,19 +187,27 @@
 
                             <td class="text-end pe-3">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('admin.parametros.edit', $parametro) }}"
-                                       class="btn btn-outline-secondary" title="Editar">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
+                                    @if ($puedeEditar)
+                                        <a href="{{ route('admin.parametros.edit', $parametro) }}"
+                                           class="btn btn-outline-secondary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    @else
+                                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'pencil'])
+                                    @endif
                                     @if ($parametro->es_activo && ! $parametro->es_del_sistema)
-                                        <form method="POST" action="{{ route('admin.parametros.destroy', $parametro) }}"
-                                              data-confirmar="Anular el parametro {{ $parametro->col_nombre }}? El sistema dejara de leerlo.">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger" title="Anular">
-                                                <i class="bi bi-slash-circle"></i>
-                                            </button>
-                                        </form>
+                                        @if ($puedeEliminar)
+                                            <form method="POST" action="{{ route('admin.parametros.destroy', $parametro) }}"
+                                                  data-confirmar="Anular el parametro {{ $parametro->col_nombre }}? El sistema dejara de leerlo.">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline-danger" title="Anular">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            @include('admin.partials.accion-sin-permiso', ['accion' => 'eliminar', 'icono' => 'slash-circle'])
+                                        @endif
                                     @endif
                                 </div>
                             </td>

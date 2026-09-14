@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.3.9",
+  "version": "1.4.0",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -53,6 +53,26 @@
             "Ni codigo_api ni el token aparecen en la respuesta JSON, en el HTML ni en el log"
           ],
           "status": "done"
+        },
+        {
+          "id": "ADM-04",
+          "name": "Adicionar el modulo Funciones por Perfil que permita marcar, por rol y por funcionalidad del panel, los permisos ver, editar y eliminar.",
+          "acceptance": [
+            "Tablas tbl_funcionalidad y tbl_rol_funcionalidad con indice unico rol + funcionalidad y CHECK que exige ver cuando hay editar o eliminar",
+            "Un select de perfil (rol activo) recarga la matriz del rol elegido por querystring rol_id",
+            "Las funcionalidades se agrupan por seccion en una grilla responsive de tarjetas con Ver, Editar y Eliminar",
+            "Las tarjetas con al menos un permiso se pintan con el fondo tenue de la marca",
+            "Botones Seleccionar todo y Limpiar",
+            "Marcar Editar o Eliminar implica Ver, en el servidor y en el navegador",
+            "Una funcionalidad sin fila para un rol ya configurado aparece desmarcada y no concede permiso",
+            "La verificacion se aplica en el servidor a todas las rutas del panel con el middleware permiso:clave,accion",
+            "Las acciones no permitidas se pintan en gris y deshabilitadas en los listados",
+            "El rol del sistema admin conserva siempre todos los permisos, impuesto en el servidor",
+            "Solo quien tiene permiso de editar el modulo de permisos puede guardar; el almacenista recibe 403",
+            "Un rol que todavia no tiene la matriz guardada conserva el comportamiento anterior (col_gestiona_catalogo)"
+          ],
+          "status": "done",
+          "notas": "El middleware es.admin sigue registrado pero ninguna ruta lo usa. Pendiente a decidir: paso 2 (retirar es.admin, puedeGestionarCatalogo y col_gestiona_catalogo). No se hizo revision visual en el navegador."
         }
       ]
     },
@@ -239,6 +259,21 @@
           ],
           "status": "done",
           "notas": "RIESGO ASUMIDO A SABIENDAS: stock arrastra los valores de la carga masiva del ERP del 2026-08-21 y en unas 2.669 filas es un punto de reposicion (stock == stock_minimo) y no una existencia fisica. Se decidio copiarlo tal cual, SIN excluir esas filas, porque la alternativa era dejar el almacen sin despachar esperando a la API; el ajuste fino se hace repuesto por repuesto desde el panel. Simulacion sobre la base real: 28.490 repuestos, 7.229 recibirian saldo, 0 con saldo previo, 21.261 siguen en 0 porque el ERP no reporta stock. La escritura real queda a cargo del administrador."
+        },
+        {
+          "id": "CAT-12",
+          "name": "En el catalogo publico, los filtros Categoria y Tipo de repuesto son excluyentes: mientras uno esta activo, el otro no.",
+          "acceptance": [
+            "Un filtro esta activo cuando tiene un valor distinto de la opcion vacia",
+            "Con Categoria activa, Tipo de repuesto queda deshabilitado; con Tipo de repuesto activo, Categoria queda deshabilitada",
+            "Con los dos vacios, ambos estan habilitados",
+            "El estado es correcto al cargar la pagina (render en Blade) y al cambiar sin recargar (data-excluye en app.js)",
+            "El formulario nunca envia los dos valores: la exclusion corre antes que data-autoenviar",
+            "No cambia como filtra cada campo: columnas, opciones, nombres de parametro y autoenvio intactos",
+            "Si llegan los dos por URL manda categoria_id y se ignora categoria, tambien en los enlaces de la paginacion",
+            "El select bloqueado se ve deshabilitado y un texto de ayuda explica por que"
+          ],
+          "status": "done"
         }
       ]
     },

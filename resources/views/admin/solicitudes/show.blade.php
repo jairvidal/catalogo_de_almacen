@@ -7,6 +7,12 @@
     @php
         $puedeElaborar = ! $solicitud->esta_cerrada
             && $solicitud->estado !== \App\Models\Solicitud::ESTADO_LISTO;
+
+        // Permisos del perfil (Funciones por perfil). Tomar, elaborar, entregar
+        // y reenviar el aviso son editar; rechazar es eliminar. Lo que no se
+        // puede se pinta en gris y deshabilitado; la ruta lo vuelve a negar.
+        $puedeEditar = auth()->user()->puede(\App\Models\Funcionalidad::SOLICITUDES, \App\Models\Funcionalidad::ACCION_EDITAR);
+        $puedeEliminar = auth()->user()->puede(\App\Models\Funcionalidad::SOLICITUDES, \App\Models\Funcionalidad::ACCION_ELIMINAR);
     @endphp
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
@@ -34,22 +40,30 @@
             </button>
 
             @if ($solicitud->estado === \App\Models\Solicitud::ESTADO_PENDIENTE)
-                <form method="POST" action="{{ route('admin.solicitudes.tomar', $solicitud) }}">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-marca">
-                        <i class="bi bi-play-circle me-1"></i>Marcar en proceso
-                    </button>
-                </form>
+                @if ($puedeEditar)
+                    <form method="POST" action="{{ route('admin.solicitudes.tomar', $solicitud) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-marca">
+                            <i class="bi bi-play-circle me-1"></i>Marcar en proceso
+                        </button>
+                    </form>
+                @else
+                    @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'play-circle', 'texto' => 'Marcar en proceso'])
+                @endif
             @endif
 
             @if ($solicitud->estado === \App\Models\Solicitud::ESTADO_LISTO)
-                <form method="POST" action="{{ route('admin.solicitudes.entregar', $solicitud) }}"
-                      data-confirmar="Confirma que la persona ya reclamo el pedido?">
-                    @csrf
-                    <button type="submit" class="btn btn-marca">
-                        <i class="bi bi-bag-check me-1"></i>Registrar entrega
-                    </button>
-                </form>
+                @if ($puedeEditar)
+                    <form method="POST" action="{{ route('admin.solicitudes.entregar', $solicitud) }}"
+                          data-confirmar="Confirma que la persona ya reclamo el pedido?">
+                        @csrf
+                        <button type="submit" class="btn btn-marca">
+                            <i class="bi bi-bag-check me-1"></i>Registrar entrega
+                        </button>
+                    </form>
+                @else
+                    @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'bag-check', 'texto' => 'Registrar entrega'])
+                @endif
             @endif
         </div>
     </div>
@@ -64,12 +78,16 @@
                     <div class="text-break">{{ $solicitud->error_notificacion }}</div>
                 @endif
             </div>
-            <form method="POST" action="{{ route('admin.solicitudes.reenviar', $solicitud) }}">
-                @csrf
-                <button type="submit" class="btn btn-sm btn-danger">
-                    <i class="bi bi-arrow-repeat me-1"></i>Reenviar aviso
-                </button>
-            </form>
+            @if ($puedeEditar)
+                <form method="POST" action="{{ route('admin.solicitudes.reenviar', $solicitud) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-arrow-repeat me-1"></i>Reenviar aviso
+                    </button>
+                </form>
+            @else
+                @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'arrow-repeat', 'texto' => 'Reenviar aviso', 'clases' => 'btn-sm btn-outline-secondary'])
+            @endif
         </div>
     @elseif ($solicitud->notificado_at)
         <div class="alert alert-success d-flex flex-wrap align-items-center gap-2 no-imprimir py-2">
@@ -79,12 +97,16 @@
                 el {{ $solicitud->notificado_at->format('d/m/Y h:i a') }}.
             </div>
             @if ($solicitud->estado === \App\Models\Solicitud::ESTADO_LISTO)
-                <form method="POST" action="{{ route('admin.solicitudes.reenviar', $solicitud) }}">
-                    @csrf
-                    <button type="submit" class="btn btn-sm btn-outline-success">
-                        <i class="bi bi-arrow-repeat me-1"></i>Reenviar
-                    </button>
-                </form>
+                @if ($puedeEditar)
+                    <form method="POST" action="{{ route('admin.solicitudes.reenviar', $solicitud) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-arrow-repeat me-1"></i>Reenviar
+                        </button>
+                    </form>
+                @else
+                    @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'arrow-repeat', 'texto' => 'Reenviar', 'clases' => 'btn-sm btn-outline-secondary'])
+                @endif
             @endif
         </div>
     @endif
@@ -170,7 +192,8 @@
                                                    style="max-width:5.5rem"
                                                    name="cantidades[{{ $item->id }}]"
                                                    value="{{ min($item->cantidad_solicitada, $stock) }}"
-                                                   min="0" max="{{ $item->cantidad_solicitada }}">
+                                                   min="0" max="{{ $item->cantidad_solicitada }}"
+                                                   @disabled(! $puedeEditar)>
                                         </td>
                                     @else
                                         <td class="text-center">
@@ -191,19 +214,27 @@
                                 Nota para el solicitante (opcional)
                             </label>
                             <textarea class="form-control mb-3" id="nota_almacen" name="nota_almacen" rows="2"
-                                      maxlength="1000"
+                                      maxlength="1000" @disabled(! $puedeEditar)
                                       placeholder="Ej: se entrega cantidad parcial; el resto llega la proxima semana.">{{ old('nota_almacen', $solicitud->nota_almacen) }}</textarea>
 
                             <div class="d-flex flex-wrap gap-2">
-                                <button type="submit" class="btn btn-marca btn-lg"
-                                        data-confirmar="Se descontara el inventario y se enviara el correo al solicitante. Continuar?">
-                                    <i class="bi bi-check2-circle me-1"></i>Pedido elaborado y notificar
-                                </button>
+                                @if ($puedeEditar)
+                                    <button type="submit" class="btn btn-marca btn-lg"
+                                            data-confirmar="Se descontara el inventario y se enviara el correo al solicitante. Continuar?">
+                                        <i class="bi bi-check2-circle me-1"></i>Pedido elaborado y notificar
+                                    </button>
+                                @else
+                                    @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'check2-circle', 'texto' => 'Pedido elaborado y notificar', 'clases' => 'btn-lg btn-outline-secondary'])
+                                @endif
 
-                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
-                                        data-bs-target="#modalRechazar">
-                                    <i class="bi bi-x-circle me-1"></i>Rechazar solicitud
-                                </button>
+                                @if ($puedeEliminar)
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
+                                            data-bs-target="#modalRechazar">
+                                        <i class="bi bi-x-circle me-1"></i>Rechazar solicitud
+                                    </button>
+                                @else
+                                    @include('admin.partials.accion-sin-permiso', ['accion' => 'eliminar', 'icono' => 'x-circle', 'texto' => 'Rechazar solicitud'])
+                                @endif
                             </div>
 
                             <p class="small text-secondary mt-2 mb-0">
@@ -294,7 +325,7 @@
     {{-- ----------------------------------------------------------------- --}}
     {{-- Modal de rechazo                                                  --}}
     {{-- ----------------------------------------------------------------- --}}
-    @if ($puedeElaborar)
+    @if ($puedeElaborar && $puedeEliminar)
         <div class="modal fade no-imprimir" id="modalRechazar" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
                 <form method="POST" action="{{ route('admin.solicitudes.rechazar', $solicitud) }}" class="modal-content">

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Categoria;
+use App\Models\Funcionalidad;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,7 +11,9 @@ class CategoriaRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->puedeGestionarCatalogo() ?? false;
+        // Crear y modificar es la accion editar de la matriz Funciones por
+        // perfil; la ruta ya lo exige y esta es la segunda barrera.
+        return $this->user()?->puede(Funcionalidad::CATEGORIAS, Funcionalidad::ACCION_EDITAR) ?? false;
     }
 
     /**

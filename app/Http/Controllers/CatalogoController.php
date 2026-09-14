@@ -22,6 +22,17 @@ class CatalogoController extends Controller
         $grupo = $request->string('categoria')->toString();
         $soloDisponibles = $request->boolean('disponibles');
 
+        // "Categoria" y "Tipo de repuesto" son excluyentes: la vista deshabilita
+        // uno mientras el otro tiene valor, asi que desde el formulario nunca
+        // llegan los dos. Si llegan igual (URL armada a mano), manda la categoria
+        // y el tipo se ignora, tambien en los enlaces de la paginacion.
+        $consulta = $request->query();
+
+        if ($categoriaId > 0 && $grupo !== '') {
+            $grupo = '';
+            unset($consulta['categoria']);
+        }
+
         $repuestos = Repuesto::query()
             ->activos()
             ->buscar($termino)
@@ -32,7 +43,9 @@ class CatalogoController extends Controller
             ->orderBy('nombre')
             ->orderBy('codigo')
             ->paginate(24)
-            ->withQueryString();
+            // Lo mismo que withQueryString() (que lee request()->query() y
+            // descarta "page"), pero sobre la consulta ya depurada.
+            ->appends($consulta);
 
         // Solo las categorias que hoy tienen algo publicable: un filtro que
         // devuelve cero resultados no le sirve a nadie.

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\CategoriaAdminController;
 use App\Http\Controllers\Admin\ParametroAdminController;
+use App\Http\Controllers\Admin\PermisoAdminController;
 use App\Http\Controllers\Admin\RepuestoAdminController;
 use App\Http\Controllers\Admin\RolAdminController;
 use App\Http\Controllers\Admin\SolicitudAdminController;
@@ -54,65 +55,78 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('auth')->group(function () {
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
+        // Cada ruta del panel pide su permiso de la matriz Funciones por
+        // perfil (middleware permiso:funcionalidad,accion -> User::puede()):
+        // ver para listar y abrir, editar para crear y modificar, eliminar
+        // para anular o rechazar. Reemplaza al es.admin de antes; un rol que
+        // todavia no tiene su matriz guardada conserva lo que le daba
+        // col_gestiona_catalogo, asi que el cambio no deja a nadie por fuera.
+
         Route::controller(SolicitudAdminController::class)->prefix('solicitudes')->name('solicitudes.')->group(function () {
-            Route::get('/', 'index')->name('index');
-            Route::get('/{solicitud}', 'show')->name('show');
-            Route::post('/{solicitud}/tomar', 'tomar')->name('tomar');
-            Route::post('/{solicitud}/listo', 'marcarListo')->name('listo');
-            Route::post('/{solicitud}/entregar', 'entregar')->name('entregar');
-            Route::post('/{solicitud}/rechazar', 'rechazar')->name('rechazar');
-            Route::post('/{solicitud}/reenviar-aviso', 'reenviarAviso')->name('reenviar');
+            Route::get('/', 'index')->name('index')->middleware('permiso:solicitudes,ver');
+            Route::get('/{solicitud}', 'show')->name('show')->middleware('permiso:solicitudes,ver');
+            Route::post('/{solicitud}/tomar', 'tomar')->name('tomar')->middleware('permiso:solicitudes,editar');
+            Route::post('/{solicitud}/listo', 'marcarListo')->name('listo')->middleware('permiso:solicitudes,editar');
+            Route::post('/{solicitud}/entregar', 'entregar')->name('entregar')->middleware('permiso:solicitudes,editar');
+            // Rechazar cierra la solicitud y devuelve el inventario: es la
+            // accion destructiva del modulo.
+            Route::post('/{solicitud}/rechazar', 'rechazar')->name('rechazar')->middleware('permiso:solicitudes,eliminar');
+            Route::post('/{solicitud}/reenviar-aviso', 'reenviarAviso')->name('reenviar')->middleware('permiso:solicitudes,editar');
         });
 
-        // La gestion del catalogo queda reservada al administrador.
-        Route::middleware('es.admin')->prefix('repuestos')->name('repuestos.')
+        Route::prefix('repuestos')->name('repuestos.')
             ->controller(RepuestoAdminController::class)->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/nuevo', 'create')->name('create');
-                Route::post('/', 'store')->name('store');
-                Route::get('/{repuesto}/editar', 'edit')->name('edit');
-                Route::put('/{repuesto}', 'update')->name('update');
-                Route::patch('/{repuesto}/stock', 'ajustarStock')->name('stock');
-                Route::delete('/{repuesto}', 'destroy')->name('destroy');
+                Route::get('/', 'index')->name('index')->middleware('permiso:repuestos,ver');
+                Route::get('/nuevo', 'create')->name('create')->middleware('permiso:repuestos,editar');
+                Route::post('/', 'store')->name('store')->middleware('permiso:repuestos,editar');
+                Route::get('/{repuesto}/editar', 'edit')->name('edit')->middleware('permiso:repuestos,editar');
+                Route::put('/{repuesto}', 'update')->name('update')->middleware('permiso:repuestos,editar');
+                Route::patch('/{repuesto}/stock', 'ajustarStock')->name('stock')->middleware('permiso:repuestos,editar');
+                Route::delete('/{repuesto}', 'destroy')->name('destroy')->middleware('permiso:repuestos,eliminar');
             });
 
-        // Las categorias agrupan el catalogo publico: solo el admin las toca.
-        Route::middleware('es.admin')->prefix('categorias')->name('categorias.')
+        Route::prefix('categorias')->name('categorias.')
             ->controller(CategoriaAdminController::class)->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/nueva', 'create')->name('create');
-                Route::post('/', 'store')->name('store');
-                Route::get('/{categoria}/editar', 'edit')->name('edit');
-                Route::put('/{categoria}', 'update')->name('update');
-                Route::delete('/{categoria}', 'destroy')->name('destroy');
+                Route::get('/', 'index')->name('index')->middleware('permiso:categorias,ver');
+                Route::get('/nueva', 'create')->name('create')->middleware('permiso:categorias,editar');
+                Route::post('/', 'store')->name('store')->middleware('permiso:categorias,editar');
+                Route::get('/{categoria}/editar', 'edit')->name('edit')->middleware('permiso:categorias,editar');
+                Route::put('/{categoria}', 'update')->name('update')->middleware('permiso:categorias,editar');
+                Route::delete('/{categoria}', 'destroy')->name('destroy')->middleware('permiso:categorias,eliminar');
             });
 
-        // Los roles definen quien gestiona el catalogo: solo el admin los toca.
-        Route::middleware('es.admin')->prefix('roles')->name('roles.')
+        Route::prefix('roles')->name('roles.')
             ->controller(RolAdminController::class)->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/nuevo', 'create')->name('create');
-                Route::post('/', 'store')->name('store');
-                Route::get('/{rol}/editar', 'edit')->name('edit');
-                Route::put('/{rol}', 'update')->name('update');
-                Route::delete('/{rol}', 'destroy')->name('destroy');
+                Route::get('/', 'index')->name('index')->middleware('permiso:roles,ver');
+                Route::get('/nuevo', 'create')->name('create')->middleware('permiso:roles,editar');
+                Route::post('/', 'store')->name('store')->middleware('permiso:roles,editar');
+                Route::get('/{rol}/editar', 'edit')->name('edit')->middleware('permiso:roles,editar');
+                Route::put('/{rol}', 'update')->name('update')->middleware('permiso:roles,editar');
+                Route::delete('/{rol}', 'destroy')->name('destroy')->middleware('permiso:roles,eliminar');
+            });
+
+        // Funciones por perfil. Guardar exige EDITAR el modulo: ver la matriz
+        // no alcanza para cambiarla.
+        Route::prefix('permisos')->name('permisos.')
+            ->controller(PermisoAdminController::class)->group(function () {
+                Route::get('/', 'index')->name('index')->middleware('permiso:permisos,ver');
+                Route::put('/{rol}', 'update')->name('update')->middleware('permiso:permisos,editar');
             });
 
         // Los parametros configuran la integracion con el ERP y llevan una
-        // credencial: solo el admin los ve.
-        Route::middleware('es.admin')->prefix('parametros')->name('parametros.')
+        // credencial.
+        Route::prefix('parametros')->name('parametros.')
             ->controller(ParametroAdminController::class)->group(function () {
-                Route::get('/', 'index')->name('index');
-                Route::get('/nuevo', 'create')->name('create');
-                Route::post('/', 'store')->name('store');
+                Route::get('/', 'index')->name('index')->middleware('permiso:parametros,ver');
+                Route::get('/nuevo', 'create')->name('create')->middleware('permiso:parametros,editar');
+                Route::post('/', 'store')->name('store')->middleware('permiso:parametros,editar');
                 // Boton "Actualizar" del modo manual de inv.actualizar. Va
                 // antes del recurso por nombre para que no la capture
-                // /{parametro}, y hereda el es.admin del grupo: el almacenista
-                // no dispara la sincronizacion con el ERP.
-                Route::post('/sincronizar-stock', 'sincronizarStock')->name('sincronizar');
-                Route::get('/{parametro}/editar', 'edit')->name('edit');
-                Route::put('/{parametro}', 'update')->name('update');
-                Route::delete('/{parametro}', 'destroy')->name('destroy');
+                // /{parametro}. Disparar la sincronizacion con el ERP es editar.
+                Route::post('/sincronizar-stock', 'sincronizarStock')->name('sincronizar')->middleware('permiso:parametros,editar');
+                Route::get('/{parametro}/editar', 'edit')->name('edit')->middleware('permiso:parametros,editar');
+                Route::put('/{parametro}', 'update')->name('update')->middleware('permiso:parametros,editar');
+                Route::delete('/{parametro}', 'destroy')->name('destroy')->middleware('permiso:parametros,eliminar');
             });
     });
 });

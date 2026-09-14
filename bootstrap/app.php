@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureEsAdmin;
+use App\Http\Middleware\EnsurePermiso;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,8 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // es.admin queda registrado pero ninguna ruta lo usa desde el modulo
+        // Funciones por perfil: las rutas del panel piden permiso:clave,accion,
+        // que respeta la matriz y cae a col_gestiona_catalogo mientras un rol no
+        // la tenga guardada.
         $middleware->alias([
             'es.admin' => EnsureEsAdmin::class,
+            'permiso' => EnsurePermiso::class,
         ]);
 
         // Los invitados que intenten entrar al panel van al login del almacen.

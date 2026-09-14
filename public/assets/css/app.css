@@ -313,6 +313,17 @@ hr {
    no el tenue, que a ese tamano queda en 2.3:1. */
 .form-control::placeholder { color: var(--ca-texto-terciario); }
 
+/* Filtro bloqueado por otro excluyente (data-excluye en app.js). Sin esto el
+   :disabled de Bootstrap cae en #e9ecef, un gris azulado casi igual al hundido
+   de los inputs, y el select no se ve bloqueado. Acotado a [data-excluye] para
+   no cambiar los campos deshabilitados del panel. */
+.form-select[data-excluye]:disabled {
+    background-color: var(--ca-neutro-200);
+    border-color: var(--ca-borde);
+    color: var(--ca-texto-terciario);
+    cursor: not-allowed;
+}
+
 .form-control:focus,
 .form-select:focus,
 .form-check-input:focus,
@@ -772,6 +783,53 @@ a:focus-visible {
     letter-spacing: .04em;
     text-transform: uppercase;
     border-bottom-color: var(--ca-borde);
+}
+
+/* --------------------------------------------------------------------------
+   Funciones por perfil (admin/permisos)
+
+   La tarjeta con al menos un permiso marcado va en el fondo TENUE de la marca
+   con su borde: dice "este perfil tiene algo aqui" sin rellenar media pantalla
+   de rojo, que es lo que la regla de los dos rojos reserva para acciones e
+   indicadores pequenos. app.js alterna .con-permiso al marcar y desmarcar.
+   -------------------------------------------------------------------------- */
+
+.selector-perfil { max-width: 36rem; }
+
+.seccion-permisos {
+    margin: 0 0 .5rem;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ca-texto-secundario);
+}
+
+.tarjeta-permiso {
+    padding: .75rem .9rem;
+    border: 1px solid var(--ca-borde);
+    border-radius: var(--ca-radio-md);
+    background-color: var(--ca-superficie);
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+.tarjeta-permiso.con-permiso {
+    background-color: var(--ca-primario-claro);
+    border-color: var(--ca-primario-borde);
+}
+
+/* Accion que el perfil no tiene permitida (partials/accion-sin-permiso).
+   Gris neutro y sin la opacidad de Bootstrap, para que se lea como "no
+   disponible" y no como un boton roto. pointer-events vuelve a auto solo para
+   que se vea el cursor y el title: un boton disabled no dispara clics igual. */
+.btn.accion-sin-permiso,
+.btn.accion-sin-permiso:disabled {
+    color: var(--ca-texto-tenue);
+    background-color: var(--ca-superficie-tenue);
+    border-color: var(--ca-borde);
+    opacity: 1;
+    pointer-events: auto;
+    cursor: not-allowed;
 }
 
 /* --------------------------------------------------------------------------

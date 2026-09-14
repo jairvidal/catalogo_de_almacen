@@ -34,7 +34,10 @@
     {{-- ------------------------------------------------------------------ --}}
     <form method="GET" action="{{ route('catalogo.index') }}" class="card border-0 shadow-sm mb-4">
         <div class="card-body">
-            <div class="row g-2 align-items-center">
+            {{-- align-items-start y no center: el texto de ayuda de un filtro
+                 bloqueado agrega altura a su columna y, centrado, desplazaria
+                 hacia abajo el buscador y el interruptor de las demas. --}}
+            <div class="row g-2 align-items-start">
                 <div class="col-lg-4">
                     <label for="q" class="form-label small text-secondary mb-1">Buscar</label>
                     <div class="input-group">
@@ -44,9 +47,17 @@
                     </div>
                 </div>
 
+                {{-- Categoria y Tipo de repuesto son excluyentes: mientras uno
+                     tiene valor el otro va deshabilitado, y un select deshabilitado
+                     no viaja en el formulario. data-excluye (app.js) repite la
+                     regla al cambiar sin recargar; el controlador la sostiene si
+                     llegan los dos por URL. --}}
                 <div class="col-lg-3 col-sm-6">
                     <label for="categoria_id" class="form-label small text-secondary mb-1">Categoria</label>
-                    <select class="form-select" id="categoria_id" name="categoria_id" data-autoenviar>
+                    <select class="form-select" id="categoria_id" name="categoria_id"
+                            aria-describedby="categoria_id_ayuda"
+                            data-excluye="categoria" data-autoenviar
+                            @disabled($tipoActivo !== '')>
                         <option value="">Todas las categorias</option>
                         @foreach ($categorias as $categoria)
                             <option value="{{ $categoria->id }}" @selected($categoriaActiva === $categoria->id)>
@@ -54,23 +65,32 @@
                             </option>
                         @endforeach
                     </select>
+                    <div id="categoria_id_ayuda" class="form-text small mt-1" @if ($tipoActivo === '') hidden @endif>
+                        No se combina con el tipo de repuesto. Elija "Todos los tipos" para usarla.
+                    </div>
                 </div>
 
                 {{-- Agrupacion generica heredada; se mantiene aparte de la
                      categoria para no perder el filtro que ya existia. --}}
                 <div class="col-lg-3 col-sm-6">
                     <label for="categoria" class="form-label small text-secondary mb-1">Tipo de repuesto</label>
-                    <select class="form-select" id="categoria" name="categoria" data-autoenviar>
+                    <select class="form-select" id="categoria" name="categoria"
+                            aria-describedby="categoria_ayuda"
+                            data-excluye="categoria_id" data-autoenviar
+                            @disabled($categoriaActiva > 0)>
                         <option value="">Todos los tipos</option>
                         @foreach ($tipos as $tipo)
                             <option value="{{ $tipo }}" @selected($tipoActivo === $tipo)>{{ $tipo }}</option>
                         @endforeach
                     </select>
+                    <div id="categoria_ayuda" class="form-text small mt-1" @if ($categoriaActiva <= 0) hidden @endif>
+                        No se combina con la categoria. Elija "Todas las categorias" para usarlo.
+                    </div>
                 </div>
 
                 <div class="col-lg-2 col-sm-6">
                     <label class="form-label small text-secondary mb-1 d-none d-lg-block">&nbsp;</label>
-                    <div class="form-check form-switch pt-lg-2">
+                    <div class="form-check form-switch pt-sm-2">
                         <input class="form-check-input" type="checkbox" role="switch" id="disponibles"
                                name="disponibles" value="1" @checked($soloDisponibles) data-autoenviar>
                         <label class="form-check-label small" for="disponibles">Solo con existencias</label>

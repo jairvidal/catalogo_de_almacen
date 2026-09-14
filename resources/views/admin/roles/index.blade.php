@@ -2,6 +2,15 @@
 
 @section('titulo', 'Roles')
 
+@use('App\Models\Funcionalidad')
+
+@php
+    // Lo que el perfil no puede hacer se pinta en gris y deshabilitado; la
+    // ruta vuelve a negarlo con el middleware permiso.
+    $puedeEditar = auth()->user()->puede(Funcionalidad::ROLES, Funcionalidad::ACCION_EDITAR);
+    $puedeEliminar = auth()->user()->puede(Funcionalidad::ROLES, Funcionalidad::ACCION_ELIMINAR);
+@endphp
+
 @section('contenido')
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
@@ -11,9 +20,13 @@
                 Define que puede hacer cada usuario del panel. Los roles del sistema no se anulan.
             </p>
         </div>
-        <a href="{{ route('admin.roles.create') }}" class="btn btn-marca">
-            <i class="bi bi-plus-lg me-1"></i>Nuevo rol
-        </a>
+        @if ($puedeEditar)
+            <a href="{{ route('admin.roles.create') }}" class="btn btn-marca">
+                <i class="bi bi-plus-lg me-1"></i>Nuevo rol
+            </a>
+        @else
+            @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'plus-lg', 'texto' => 'Nuevo rol', 'clases' => 'btn-outline-secondary'])
+        @endif
     </div>
 
     {{-- Filtros rapidos --}}
@@ -118,19 +131,27 @@
 
                             <td class="text-end pe-3">
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('admin.roles.edit', $rol) }}"
-                                       class="btn btn-outline-secondary" title="Editar">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
+                                    @if ($puedeEditar)
+                                        <a href="{{ route('admin.roles.edit', $rol) }}"
+                                           class="btn btn-outline-secondary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    @else
+                                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'pencil'])
+                                    @endif
                                     @if ($rol->col_activo && ! $rol->es_del_sistema)
-                                        <form method="POST" action="{{ route('admin.roles.destroy', $rol) }}"
-                                              data-confirmar="Anular el rol {{ $rol->col_nombre }}? No se podra asignar a nuevos usuarios.">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger" title="Anular">
-                                                <i class="bi bi-slash-circle"></i>
-                                            </button>
-                                        </form>
+                                        @if ($puedeEliminar)
+                                            <form method="POST" action="{{ route('admin.roles.destroy', $rol) }}"
+                                                  data-confirmar="Anular el rol {{ $rol->col_nombre }}? No se podra asignar a nuevos usuarios.">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline-danger" title="Anular">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            @include('admin.partials.accion-sin-permiso', ['accion' => 'eliminar', 'icono' => 'slash-circle'])
+                                        @endif
                                     @endif
                                 </div>
                             </td>

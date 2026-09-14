@@ -11,6 +11,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use RuntimeException;
 
 class RepuestoAdminController extends Controller
 {
@@ -115,6 +116,13 @@ class RepuestoAdminController extends Controller
 
     /**
      * Guarda la imagen en public/img con el codigo del repuesto como nombre.
+     *
+     * NO usa $imagen->move(): en IIS eso es un rename desde el directorio
+     * temporal de PHP, y en NTFS un rename conserva los permisos del origen.
+     * El archivo quedaba en public/img con las ACL de C:\Windows\Temp, sin
+     * lectura para IUSR, e IIS respondia 401 al pedir la foto: el repuesto
+     * guardaba el nombre pero el catalogo mostraba la imagen rota. Copiar el
+     * contenido a un archivo NUEVO hace que herede los permisos de public/img.
      */
     private function guardarImagen(?UploadedFile $imagen, int|string $codigo): ?string
     {
@@ -123,7 +131,27 @@ class RepuestoAdminController extends Controller
         }
 
         $nombre = Str::slug((string) $codigo).'-'.now()->format('YmdHis').'.'.$imagen->getClientOriginalExtension();
-        $imagen->move(public_path('img'), $nombre);
+        $destino = public_path('img/'.$nombre);
+
+        $origen = fopen($imagen->getRealPath(), 'rb');
+        $salida = $origen ? fopen($destino, 'xb') : false;
+        $copiado = $salida && stream_copy_to_stream($origen, $salida) !== false;
+
+        if ($origen) {
+            fclose($origen);
+        }
+
+        if ($salida) {
+            fclose($salida);
+        }
+
+        if (! $copiado) {
+            if ($salida) {
+                @unlink($destino);
+            }
+
+            throw new RuntimeException('No se pudo guardar la imagen en public/img.');
+        }
 
         return $nombre;
     }

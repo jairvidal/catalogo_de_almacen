@@ -14,6 +14,7 @@ php artisan serve                      # servidor de desarrollo (http://localhos
 composer dev                           # serve + queue:listen + pail + vite en paralelo
 php artisan migrate                    # crear/actualizar el esquema en SQL Server
 php artisan db:seed                    # usuarios internos + repuestos desde public/img
+php artisan db:seed --class=FuncionalidadSeeder   # funcionalidades del panel y matriz inicial de permisos (idempotente)
 php artisan repuestos:importar ruta.csv --separador=";" --crear   # carga masiva desde CSV
 php artisan repuestos:clasificar [--forzar] [--simular]           # categoria segun el color del marco de la foto
 php artisan repuestos:sincronizar-stock [--simular]               # trae repuestos.stock desde la API de inventario
@@ -57,7 +58,7 @@ Un fallo de SMTP **nunca** debe tumbar un cambio de estado. `notificarPedidoList
 
 ### Roles y acceso
 
-Dos roles: `admin` y `almacenista`. Ambos entran al panel y despachan solicitudes; **solo el admin gestiona el catálogo y los roles**, vía el alias de middleware `es.admin` (`EnsureEsAdmin` → `User::puedeGestionarCatalogo()`). El login incluye `activo => true` en las credenciales para que un usuario deshabilitado no entre aunque la contraseña sea correcta. Los invitados que caen en `/admin` se redirigen a `admin.login` (configurado en `bootstrap/app.php`).
+Dos roles del sistema: `admin` y `almacenista`. **Qué puede hacer cada rol lo decide la matriz de Funciones por perfil** (ver la sección siguiente): cada ruta del panel pide `permiso:funcionalidad,accion` → `User::puede()`. El alias `es.admin` (`EnsureEsAdmin` → `User::puedeGestionarCatalogo()`) **sigue registrado pero ninguna ruta lo usa**; no lo ponga en rutas nuevas, porque se saltaría la matriz. El login incluye `activo => true` en las credenciales para que un usuario deshabilitado no entre aunque la contraseña sea correcta. Los invitados que caen en `/admin` se redirigen a `admin.login` (configurado en `bootstrap/app.php`).
 
 **El rol vive en dos sitios a propósito** (paso 1 de un cambio compatible hacia atrás, todavía sin terminar):
 - `users.rol` — la clave como texto. Es la que **autentica** (`User::esAdmin()`) y la que se sigue escribiendo.
@@ -65,9 +66,26 @@ Dos roles: `admin` y `almacenista`. Ambos entran al panel y despachan solicitude
 
 `User::puedeGestionarCatalogo()` obedece a `rolAsignado->col_gestiona_catalogo` cuando el rol existe y está activo, y cae a `esAdmin()` si el usuario todavía no tiene `rol_id`. La relación se llama **`rolAsignado()`** y no `rol()` porque la columna homónima opacaría el nombre de la relación en Eloquent. Al crear o editar usuarios hay que escribir **las dos** columnas (ver `UsuarioSeeder`); mientras exista `users.rol`, no elimine ese paso.
 
+### Funciones por perfil (`tbl_funcionalidad`, `tbl_rol_funcionalidad`)
+
+Pantalla `/admin/permisos?rol_id=N`: un select de perfil (rol activo) y, agrupadas por sección, una tarjeta por funcionalidad con las casillas **Ver / Editar / Eliminar**. Guardar es `PUT admin/permisos/{rol}`.
+
+- **`User::puede($funcionalidad, $accion)` es el ÚNICO punto de decisión.** Lo usan el middleware `permiso:clave,accion` (`EnsurePermiso`, que además deja un `Log::warning` con usuario, funcionalidad, acción y ruta), los `authorize()` de los cuatro FormRequest (`puede(..., 'editar')`), la directiva Blade `@puede('repuestos', 'editar')` y el Gate `permiso`. No decida permisos en ningún otro sitio. Las claves y acciones son constantes de `Funcionalidad` (`REPUESTOS`, `ACCION_EDITAR`...); una acción desconocida lanza `InvalidArgumentException`.
+- **Orden de decisión**: (1) el rol del sistema `admin` (`Rol::es_admin_del_sistema`) puede **todo, siempre**, tenga lo que tenga en la base; (2) rol activo **con matriz guardada** → manda la matriz y una funcionalidad sin fila no concede nada; (3) rol activo **sin ninguna fila** → `Funcionalidad::permisoHeredado()`, que reproduce exactamente lo que hacía `es.admin` (solicitudes para todos; catálogo, categorías, roles, permisos y parámetros según `col_gestiona_catalogo`; cualquier otra clave, `false`); (4) sin rol vigente → `users.rol`, igual que `puedeGestionarCatalogo()`. Es el mismo patrón de cambio compatible que `users.rol` / `rol_id`: **correr solo `migrate` no deja a nadie por fuera**.
+- **"Configurado" es por rol, no por funcionalidad**: `PermisoService::guardar()` escribe una fila por **cada** funcionalidad activa, marcada o no. Guardar las desmarcadas es lo que apaga el permiso heredado. Por eso una funcionalidad nueva le aparece desmarcada a un rol ya configurado, y nunca se concede por herencia.
+- **Mapa de acciones en las rutas**: `ver` = listar y abrir; `editar` = crear, modificar, ajustar existencia, tomar / elaborar / entregar / reenviar aviso, y el botón Actualizar de parámetros; `eliminar` = anular, desactivar y **rechazar** una solicitud. Una ruta nueva del panel **tiene que** llevar su `permiso:`.
+- **Editar o eliminar implican ver**: lo normaliza el servicio, lo sostiene el CHECK `ck_tbl_rol_funcionalidad_ver` y `app.js` lo aplica al marcar para la UX.
+- **Protección del admin, en el servidor**: `User::puede()` le devuelve siempre `true`, y `PermisoService::guardar()` le escribe todo en `true` llegue lo que llegue (la vista además bloquea sus casillas). Guardar exige `permiso:permisos,editar` en la ruta **y** en `PermisoRolRequest::authorize()`: ver la matriz no alcanza. Ojo: **editar el módulo de permisos equivale a poder darse cualquier permiso**, así que es un privilegio de administrador.
+- `PermisoService::guardar()` relee el rol con `lockForUpdate()` (rechaza uno anulado) y escribe con un `MERGE ... with (holdlock)` nativo en lotes de 300 filas (límite de 2100 parámetros). El índice único `uq_tbl_rol_funcionalidad_rol_funcionalidad` es la garantía final. Cada guardado queda en `Log::info`.
+- **Caché**: `puede()` hace una sola consulta por instancia de usuario (`Rol::permisosGuardados()`), que en una petición normal equivale a una por petición. Si una prueba reutiliza la misma instancia después de cambiar la matriz, llame a `$usuario->olvidarPermisos()` o use un usuario nuevo.
+- **Listados**: las acciones no permitidas se pintan con `admin.partials.accion-sin-permiso` (botón gris y deshabilitado, clase `.accion-sin-permiso`, atributo `data-sin-permiso`), **sin** formulario ni enlace detrás. El menú lateral solo muestra lo que el perfil puede ver. Ocultar o deshabilitar es la cara visible, no la barrera.
+- `FuncionalidadSeeder` es idempotente: `MERGE` por `col_clave` que refresca nombre, sección, icono y orden (nunca `col_activo`), y siembra la matriz **solo** a los roles sin ninguna fila, con el permiso heredado. Hoy hay seis funcionalidades: solicitudes, repuestos, categorías, roles, permisos y parámetros. **No hay módulo de usuarios**; cuando exista, se agrega al seeder y a sus rutas. Va en `DatabaseSeeder` justo después de `UsuarioSeeder`, antes del `RepuestoSeeder` roto.
+- Las FK de `tbl_rol_funcionalidad` llevan prefijo (`col_rol_id`, `col_funcionalidad_id`) porque la tabla es nueva; el "sin prefijo" aplica solo a las FK agregadas a tablas viejas.
+- **`col_gestiona_catalogo` queda como respaldo** de un rol sin matriz guardada (el formulario de rol lo dice). Paso 2 pendiente, a decidir: quitar `es.admin`, `puedeGestionarCatalogo()` y la columna cuando todos los roles estén configurados.
+
 ### Roles (`tbl_rol`)
 
-CRUD en `/admin/roles`, solo para el admin. Columnas con el prefijo de la convención: `col_clave` (única, minúsculas, espeja `users.rol`), `col_nombre`, `col_descripcion`, `col_gestiona_catalogo`, `col_sistema`, `col_activo`.
+CRUD en `/admin/roles` (permiso `roles`). Columnas con el prefijo de la convención: `col_clave` (única, minúsculas, espeja `users.rol`), `col_nombre`, `col_descripcion`, `col_gestiona_catalogo`, `col_sistema`, `col_activo`.
 
 - **Anular ≠ borrar**: `destroy` pone `col_activo = false` porque los usuarios apuntan al registro por `rol_id`.
 - `RolService::anular()` bloquea la anulación de un rol del sistema o con usuarios activos, releyendo con `lockForUpdate()` dentro de la transacción.
@@ -76,7 +94,7 @@ CRUD en `/admin/roles`, solo para el admin. Columnas con el prefijo de la conven
 
 ### Parámetros (`tbl_parametro`)
 
-Configuración que el administrador cambia en caliente desde `/admin/parametros` (solo admin, `es.admin`). Es lo que configura la sincronización con el ERP.
+Configuración que el administrador cambia en caliente desde `/admin/parametros` (permiso `parametros`). Es lo que configura la sincronización con el ERP.
 
 - **`col_estado` es texto (`'activo'` / `'inactivo'`), no un booleano** — a diferencia del `col_activo` de `tbl_rol` y `tbl_categoria`. Fue un pedido explícito del usuario; las constantes viven en `Parametro::ESTADO_ACTIVO` / `ESTADO_INACTIVO` y la base lo acota con el CHECK `ck_tbl_parametro_estado`.
 - **`Parametro::valor($nombre, $porDefecto)` es el único lector**: devuelve el valor solo si el parámetro está activo. No consulte la tabla desde ningún otro sitio.
@@ -123,7 +141,7 @@ Configuración que el administrador cambia en caliente desde `/admin/parametros`
 **Modo automático / manual** (`inv.actualizar`):
 
 - **`automatico`**: la tarea programada dispara la sincronización cada `tiempo.actualizar` minutos, como siempre.
-- **`manual`**: el scheduler **no dispara nunca** (`debeCorrer()` exige las dos condiciones: modo automático *y* que haya pasado el intervalo) y aparece en `/admin/parametros` un botón **Actualizar** que corre la sincronización a petición del administrador. Ruta `POST admin/parametros/sincronizar-stock`, dentro del grupo `es.admin`: el almacenista recibe 403.
+- **`manual`**: el scheduler **no dispara nunca** (`debeCorrer()` exige las dos condiciones: modo automático *y* que haya pasado el intervalo) y aparece en `/admin/parametros` un botón **Actualizar** que corre la sincronización a petición del administrador. Ruta `POST admin/parametros/sincronizar-stock` con `permiso:parametros,editar`: el almacenista recibe 403.
 - **El respaldo cuando el parámetro falta, está inactivo o trae un valor desconocido es `automatico`**, y es deliberado: es como se comportaba el sistema antes de que el parámetro existiera, y un stock envejeciendo no avisa. Con respaldo `manual`, anular el parámetro apagaría la integración en silencio.
 - El botón se pinta solo en modo manual, pero **eso no es la barrera**: el controlador vuelve a comprobar el modo y responde 409 si está en automático.
 - Como `QUEUE_CONNECTION=sync`, la sincronización corre **dentro de la petición**; por eso el controlador sube `set_time_limit` a 600s a propósito.
@@ -190,7 +208,9 @@ Quedan **7 repuestos sin `categoria_id`** sobre 591: cuatro PNG cuyo marco no se
 - `CategoriaSeeder` hace `upsert` por `col_slug` refrescando **solo** `col_color_hex`: el nombre y la descripción son del administrador y volver a correr el seeder no debe deshacer sus cambios.
 - El chip de color es **la única excepción legítima a "no hex sueltos en las vistas"**: `col_color_hex` es contenido (el color real del marco), no una decisión de diseño, así que va en el atributo `style`. La forma vive en `.chip-color` / `.chip-color-sm` en `app.css`.
 
-**Ojo con el nombre de la relación**: `repuestos` ya tenía una columna de texto `categoria` (la línea genérica que inventa `RepuestoSeeder`: Rodamientos, Neumática, Tornillería…), que es **otra cosa** y se deja como estaba. Por eso la relación se llama **`categoriaAsignada()`** y no `categoria()`, exactamente por el mismo motivo que `User::rolAsignado()`: la columna homónima opacaría la relación y `$repuesto->categoria` seguiría devolviendo el texto. En el catálogo público el filtro nuevo es **Categoría** (`categoria_id`) y el heredado quedó etiquetado **Tipo de repuesto** (`categoria`), para que dos filtros no se llamen igual.
+**Ojo con el nombre de la relación**: `repuestos` ya tenía una columna de texto `categoria` (la línea genérica que inventa `RepuestoSeeder`: Rodamientos, Neumática, Tornillería…), que es **otra cosa** y se deja como estaba. Por eso la relación se llama **`categoriaAsignada()`** y no `categoria()`, exactamente por el mismo motivo que `User::rolAsignado()`: la columna homónima opacaría la relación y `$repuesto->categoria` seguiría devolviendo el texto. En el catálogo público el filtro nuevo es **Categoría** (`categoria_id`) y el heredado quedó etiquetado **Tipo de repuesto** (`categoria`), para que dos filtros no se llamen igual. Hoy el parámetro `categoria` filtra por `desc_cat_1` (el GRUPO del ERP) y `categoria_id` por `id_categoria`; ver `CatalogoController::index`.
+
+**Los dos filtros son excluyentes**: mientras uno tiene valor, el otro se pinta deshabilitado (y un select deshabilitado no viaja en el formulario). Lo sostienen tres capas: `@disabled` en `catalogo/index.blade.php` para el render inicial, `data-excluye` en `app.js` para el cambio sin recargar, y el controlador, que **si llegan los dos por URL deja mandar a `categoria_id` e ignora `categoria`**, también en los enlaces de la paginación (por eso usa `appends($consulta)` sobre la consulta depurada en vez de `withQueryString()`). Con un solo parámetro el filtrado es el de siempre.
 
 Las dos vistas públicas de una solicitud están protegidas sin autenticación:
 - `confirmacion/{numero}` exige que el número venga en el flash de sesión, si no redirige a consultar.
@@ -206,6 +226,8 @@ Los datos que no vienen de la imagen (nombre, línea, ubicación, **`existencia`
 
 **Pendiente conocido**: `RepuestoSeeder` sigue haciendo `upsert` con `descripcion`, `categoria`, `activo`, `created_at` y `updated_at`, columnas que el esquema del ERP ya no tiene, así que hoy falla con *Invalid column name* (el `upsert` va por el query builder y no lo filtra `$fillable`). Antes de arreglarlo hay que decidir si el seeder todavía tiene sentido: con el catálogo real del ERP cargado, sembrar sobrescribiría los nombres reales con los genéricos del `crc32`.
 
+**La foto subida desde el panel se COPIA a `public/img`, no se mueve** (`RepuestoAdminController::guardarImagen()`). En el servidor de producción (IIS) `$imagen->move()` es un rename desde el temporal de PHP que conserva sus ACL: el archivo quedaba sin lectura para `IUSR` e IIS respondía 401, así que la foto se veía rota aunque el repuesto la tuviera asociada. Un archivo nuevo hereda los permisos de la carpeta; no vuelva a `move()`.
+
 `public/img` tiene hoy **758 archivos** para 591 repuestos: sobran fotos alternas, tres imágenes sin código derivable (`activo_fijo_*`) y varios códigos con dos extensiones. La carpeta **no es un espejo del catálogo** y no debe tratarse como tal.
 
 ## Frontend
@@ -217,7 +239,9 @@ Los datos que no vienen de la imagen (nombre, línea, ubicación, **`existencia`
 - `form[data-sincronizar-stock]` → botón "Actualizar" de `/admin/parametros`: envía por `fetch`, deja el botón con spinner mientras corre y avisa con toasts (ver sincronización con el ERP).
 - `form[data-confirmar="mensaje"]` → confirmación antes de acciones destructivas.
 - `[data-autoenviar]` → autoenvía el formulario de filtros al cambiar.
+- `[data-excluye="id"]` → mientras el campo tiene valor, deshabilita el campo con ese id y muestra su ayuda (el elemento de su `aria-describedby`). **Tiene que registrarse antes que `data-autoenviar`**: los listeners corren en orden de registro y `form.submit()` arma los datos al llamarse; al revés viajarían los dos valores.
 - `[data-paso]` / `[data-objetivo]` → botones +/- de cantidad.
+- `form[data-matriz-permisos]` → Funciones por perfil: `[data-accion-permiso]` aplica "editar/eliminar implican ver" y alterna `.con-permiso` en `[data-tarjeta-permiso]`; `[data-permisos-marcar="todo|nada"]` son Seleccionar todo / Limpiar (no guardan). El select de perfil usa `data-autoenviar`.
 - `window.mostrarAviso(mensaje, tipo)` → toast.
 
 Layouts: `layouts/app.blade.php` (público) y `layouts/admin.blade.php` (panel), ambos incluyen `partials/alertas`.
@@ -253,5 +277,5 @@ Todo el color vive en los tokens `--ca-*` del `:root` de `app.css`, que además 
 - La lógica de negocio con transacciones vive en `app/Services`; los controladores solo validan, delegan y redirigen con `back()->with(...)`.
 - Los repuestos no se borran: `destroy` solo pone `activo = false`, porque los items históricos apuntan al registro.
 - **Tablas nuevas**: `tbl_<nombre>` con `id` bigint autoincremental y columnas con prefijo `col_` (ver `tbl_rol`, `tbl_categoria`, `tbl_parametro`). Las tablas anteriores a esta convención (`repuestos`, `solicitudes`, `solicitud_items`, `users`) se dejan como están; las FK que se les agregan sí van sin prefijo para no mezclar estilos dentro de la misma tabla (`repuestos.categoria_id`, `users.rol_id`).
-- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.3.9**.
+- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.0**.
 - `phpunit.xml` apunta a la base real, así que las pruebas usan `DatabaseTransactions` y **no** `RefreshDatabase` (ver `tests/Feature/RolAdminTest`).
