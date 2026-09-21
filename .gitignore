@@ -25,3 +25,5 @@ yarn-error.log
 *.png
 *.jpg
 *.jpeg
+changelog.txt
+feature_list.json
