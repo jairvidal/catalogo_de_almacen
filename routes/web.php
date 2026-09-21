@@ -127,6 +127,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 // antes del recurso por nombre para que no la capture
                 // /{parametro}. Disparar la sincronizacion con el ERP es editar.
                 Route::post('/sincronizar-stock', 'sincronizarStock')->name('sincronizar')->middleware('permiso:parametros,editar');
+                // Suelta el candado que quedo colgado cuando una corrida murio
+                // a medias. Tambien es editar: deja disparar otra corrida.
+                Route::post('/liberar-sincronizacion', 'liberarSincronizacion')->name('liberar')->middleware('permiso:parametros,editar');
                 Route::get('/{parametro}/editar', 'edit')->name('edit')->middleware('permiso:parametros,editar');
                 Route::put('/{parametro}', 'update')->name('update')->middleware('permiso:parametros,editar');
                 Route::delete('/{parametro}', 'destroy')->name('destroy')->middleware('permiso:parametros,eliminar');

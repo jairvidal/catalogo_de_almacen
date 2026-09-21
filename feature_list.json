@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -73,10 +73,24 @@
           ],
           "status": "done",
           "notas": "El middleware es.admin sigue registrado pero ninguna ruta lo usa. Pendiente a decidir: paso 2 (retirar es.admin, puedeGestionarCatalogo y col_gestiona_catalogo). No se hizo revision visual en el navegador."
+        },
+        {
+          "id": "ADM-05",
+          "name": "Que el boton Actualizar del inventario termine dentro de la peticion web y poder liberar el bloqueo cuando una corrida muere a medias",
+          "acceptance": [
+            "La sincronizacion completa tarda unos 13 s y no ~47 s: el inventario del ERP se pide en una sola pagina (InventarioApiSidocsa::TAMANO_PAGINA = 10000) en vez de ocho de 1000",
+            "El costo del ERP es por llamada y no por fila, verificado contra el endpoint real: 1000 filas 5,28 s / 5000 filas 5,38 s / 10000 filas 4,62 s",
+            "TAMANO_PAGINA sigue gobernando a la vez el `cant` que viaja y el corte de la ultima pagina en LectorInventarioErp: son una sola constante",
+            "El pico de memoria queda en 38 MB con el inventario entero en una pagina",
+            "El panel dice desde cuando lleva una corrida en curso y avisa cuando pasa de tres minutos",
+            "Boton Liberar bloqueo en /admin/parametros, con permiso parametros,editar y confirmacion, que suelta el candado y la marca de en curso",
+            "El aviso de error del boton Actualizar muestra el codigo HTTP cuando la respuesta no trae un mensaje legible"
+          ],
+          "status": "done"
         }
       ]
     },
-     {
+    {
       "id": 3,
       "name": "Catalogo_inventario",
       "prefijo": "CAT",

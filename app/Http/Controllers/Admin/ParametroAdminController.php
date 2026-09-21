@@ -39,6 +39,10 @@ class ParametroAdminController extends Controller
         $termino = $request->string('q')->toString();
         $filtro = $request->string('filtro')->toString();
 
+        // Se resuelve una sola vez: la vista necesita la hora y los minutos, y
+        // cada llamada es una consulta al cache.
+        $enCursoDesde = $this->sincronizador->corridaEnCursoDesde();
+
         $parametros = Parametro::query()
             ->buscar($termino)
             ->when($filtro === 'activos', fn ($q) => $q->where('col_estado', Parametro::ESTADO_ACTIVO))
@@ -60,7 +64,13 @@ class ParametroAdminController extends Controller
             'sincronizacion' => [
                 'modo' => $this->sincronizador->modo(),
                 'es_manual' => $this->sincronizador->esManual(),
-                'en_curso' => $this->sincronizador->hayCorridaEnCurso(),
+                'en_curso' => $enCursoDesde !== null,
+                // Desde cuando: una corrida recien arrancada y un candado que
+                // quedo colgado se veian igual en pantalla.
+                'en_curso_desde' => $enCursoDesde?->format('h:i a'),
+                'en_curso_minutos' => $enCursoDesde === null
+                    ? null
+                    : (int) floor((now()->getTimestamp() - $enCursoDesde->getTimestamp()) / 60),
                 'minutos' => $this->sincronizador->minutosDeIntervalo(),
                 // Las dos fechas van en hora de Colombia; la aplicacion
                 // calcula en UTC (ver SincronizadorStockRepuestos).
@@ -171,6 +181,33 @@ class ParametroAdminController extends Controller
         return $this->responder($request, true, $resultado->resumen(), 200, $resultado->contadores() + [
             'ultima' => $this->sincronizador->ultimaCorridaFormateada(),
         ]);
+    }
+
+    /**
+     * Boton "Liberar bloqueo": suelta a la fuerza el candado y la marca de
+     * "sincronizacion en curso".
+     *
+     * Existe porque el `finally` que las suelta no corre si el proceso muere de
+     * golpe —IIS cortando la peticion a mitad de la corrida, tipicamente— y
+     * entonces el panel se queda diciendo "en curso" y todo intento nuevo
+     * rebota con 409 durante los 15 minutos que tardan en vencer. Antes de esto
+     * la unica salida era borrar filas de `cache_locks` a mano en SQL Server.
+     *
+     * Va por formulario normal (no fetch): es una accion puntual, el resultado
+     * se ve recargando la tarjeta y asi la vista vuelve a leer el estado real.
+     */
+    public function liberarSincronizacion(Request $request): RedirectResponse
+    {
+        $this->sincronizador->liberarBloqueo();
+
+        Log::warning('Bloqueo de sincronizacion liberado desde el panel.', [
+            'usuario_id' => $request->user()?->id,
+        ]);
+
+        return back()->with(
+            'exito',
+            'Bloqueo liberado. Si habia una corrida trabajando de verdad, espere a que termine antes de lanzar otra.'
+        );
     }
 
     /**

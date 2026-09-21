@@ -48,14 +48,29 @@ class InventarioApiSidocsa
      * pagina es `cant`: si el corte viviera en otra constante, subir una sin la
      * otra cortaria el recorrido en la primera pagina y la sincronizacion
      * traeria solo una parte del inventario sin avisar.
+     *
+     * POR QUE 10.000 Y NO 1.000: EL COSTO DEL ERP ES POR LLAMADA, NO POR FILA.
+     * Medido contra el endpoint real, una pagina tarda lo mismo sea cual sea su
+     * tamano (1.000 filas: 5,28 s; 5.000: 5,38 s; 10.000: 4,62 s), asi que con
+     * paginas de 1.000 los ~7.100 items del ERP costaban OCHO viajes de ida y
+     * vuelta —unos 40 s de pura latencia— y hoy caben en uno solo. La corrida
+     * completa bajo de ~47 s a ~13 s, y esa diferencia es la que decide si el
+     * boton "Actualizar" del panel alcanza a responder antes de que IIS corte
+     * la peticion: con QUEUE_CONNECTION=sync la sincronizacion ocurre DENTRO de
+     * ella (ver ParametroAdminController::sincronizarStock).
+     *
+     * El precio es tener una pagina entera en memoria: medido, 38 MB de pico
+     * contra los 28 MB de antes, muy holgado incluso con un memory_limit de
+     * 128M. Si algun dia el ERP se pusiera lento con paginas grandes, bajar
+     * este numero es un cambio de una linea y el recorrido se reparte solo.
      */
-    public const TAMANO_PAGINA = 1000;
+    public const TAMANO_PAGINA = 10000;
 
     /**
      * Tope duro de paginas. Sin el, un endpoint que siempre responda lleno
-     * dejaria el comando girando para siempre. 50 paginas de 1.000 son 50.000
-     * items, el mismo techo que antes daban 500 paginas de 100 y holgado contra
-     * los ~29.000 del ERP.
+     * dejaria el comando girando para siempre. 50 paginas de 10.000 son 500.000
+     * items, sobradisimo contra los ~7.100 que devuelve el ERP con la bodega y
+     * los criterios configurados hoy.
      */
     public const MAX_PAGINAS = 50;
 

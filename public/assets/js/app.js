@@ -173,7 +173,26 @@
                 /* La corrida termino: el aviso de "en curso" ya no aplica. */
                 document.querySelector('[data-sincronizar-en-curso]')?.remove();
             } else {
-                mostrarAviso(datos.mensaje ?? 'No se pudo actualizar el stock.', 'danger');
+                /* El orden importa. `mensaje` es lo que responde el
+                   controlador y siempre explica que paso. `message` es lo que
+                   devuelve Laravel cuando la peticion ni siquiera llego ahi
+                   (419 de sesion vencida, un 500 sin capturar). Y si no hay
+                   ninguno de los dos, el cuerpo no era JSON: paso algo entre el
+                   navegador y la aplicacion —tipicamente el servidor web
+                   cortando la peticion— y entonces el unico dato que tenemos es
+                   el codigo HTTP, que sin esto se perdia.
+
+                   No es un detalle cosmetico: una corrida que IIS cortaba a los
+                   20 segundos se veia en pantalla como un escueto "No se pudo
+                   actualizar el stock", sin codigo ni pista, y eso mando la
+                   busqueda del fallo por el camino equivocado. */
+                mostrarAviso(
+                    datos.mensaje
+                        ?? datos.message
+                        ?? `No se pudo actualizar el stock: el servidor respondio HTTP ${respuesta.status}`
+                            + ' sin un mensaje legible. Revise storage/logs/laravel.log y el log del servidor web.',
+                    'danger'
+                );
             }
         } catch (error) {
             mostrarAviso('No se pudo conectar con el servidor. Intente de nuevo.', 'danger');

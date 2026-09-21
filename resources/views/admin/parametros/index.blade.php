@@ -67,28 +67,58 @@
                     @endif
                 </p>
 
+                {{-- Se dice DESDE CUANDO, porque "en curso" a secas no
+                     distingue una corrida que acaba de arrancar de un candado
+                     que quedo colgado cuando el proceso murio: la primera hay
+                     que esperarla y la segunda hay que liberarla. Una corrida
+                     normal tarda menos de un minuto. --}}
                 @if ($sincronizacion['en_curso'])
                     <p class="small text-marca mb-0 mt-2" data-sincronizar-en-curso>
                         <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-                        Sincronizacion en curso...
+                        Sincronizacion en curso desde las {{ $sincronizacion['en_curso_desde'] }}
+                        ({{ $sincronizacion['en_curso_minutos'] }} minuto(s)).
                     </p>
+
+                    @if ($sincronizacion['en_curso_minutos'] >= 3)
+                        <p class="small text-secondary mb-0">
+                            Lleva mas de lo normal. Si nadie la esta corriendo, el proceso pudo morir a medias
+                            y dejar el bloqueo puesto; libere el bloqueo para volver a actualizar.
+                        </p>
+                    @endif
                 @endif
             </div>
 
-            {{-- El boton solo existe en modo manual; el servidor lo vuelve a
-                 comprobar antes de sincronizar. --}}
-            @if ($sincronizacion['es_manual'])
-                @if ($puedeEditar)
-                    <form method="POST" action="{{ route('admin.parametros.sincronizar') }}" data-sincronizar-stock>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                {{-- Liberar el bloqueo se ofrece en los dos modos: una corrida
+                     de la tarea programada tambien puede morir a medias. Es
+                     destructivo (deja arrancar una segunda corrida en paralelo
+                     si la primera seguia viva), asi que va contorneado y con
+                     confirmacion, no en rojo de marca. --}}
+                @if ($sincronizacion['en_curso'] && $puedeEditar)
+                    <form method="POST" action="{{ route('admin.parametros.liberar') }}"
+                          data-confirmar="Solo libere el bloqueo si esta seguro de que no hay ninguna sincronizacion trabajando. Continuar?">
                         @csrf
-                        <button type="submit" class="btn btn-marca">
-                            <i class="bi bi-arrow-repeat me-1"></i>Actualizar
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-unlock me-1"></i>Liberar bloqueo
                         </button>
                     </form>
-                @else
-                    @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'arrow-repeat', 'texto' => 'Actualizar', 'clases' => 'btn-outline-secondary'])
                 @endif
-            @endif
+
+                {{-- El boton solo existe en modo manual; el servidor lo vuelve a
+                     comprobar antes de sincronizar. --}}
+                @if ($sincronizacion['es_manual'])
+                    @if ($puedeEditar)
+                        <form method="POST" action="{{ route('admin.parametros.sincronizar') }}" data-sincronizar-stock>
+                            @csrf
+                            <button type="submit" class="btn btn-marca">
+                                <i class="bi bi-arrow-repeat me-1"></i>Actualizar
+                            </button>
+                        </form>
+                    @else
+                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'arrow-repeat', 'texto' => 'Actualizar', 'clases' => 'btn-outline-secondary'])
+                    @endif
+                @endif
+            </div>
         </div>
     </div>
 

@@ -154,6 +154,54 @@ class SincronizadorStockRepuestos
     }
 
     /**
+     * Desde cuando dice el sistema que hay una corrida en curso, EN HORA DE
+     * COLOMBIA (ver ZONA_VISIBLE), o null si no hay ninguna.
+     *
+     * La marca guarda el timestamp de cuando arranco, y hasta ahora nadie lo
+     * leia: el panel solo decia "Sincronizacion en curso..." sin mas. Esa frase
+     * sola no distingue una corrida que arranco hace diez segundos de un
+     * candado que quedo colgado porque el proceso murio, que son dos
+     * situaciones opuestas —una hay que esperarla y la otra hay que liberarla—
+     * y el administrador no tenia con que diferenciarlas.
+     */
+    public function corridaEnCursoDesde(): ?Carbon
+    {
+        $marca = Cache::get(self::CLAVE_EN_CURSO);
+
+        return is_numeric($marca)
+            ? Carbon::createFromTimestamp((int) $marca, self::ZONA_VISIBLE)
+            : null;
+    }
+
+    /**
+     * Suelta el candado y la marca a la fuerza.
+     *
+     * POR QUE HACE FALTA: las dos se sueltan en el `finally` de sincronizar(),
+     * pero un `finally` no corre si el proceso muere de golpe —y eso es
+     * exactamente lo que pasa cuando IIS corta la peticion del boton a mitad de
+     * la corrida—. Entonces quedan colgadas hasta vencer (15 minutos) y durante
+     * ese rato el panel dice "en curso" y CADA intento nuevo rebota con un 409
+     * sin llegar a llamar al ERP: el sistema se ve averiado mucho despues de
+     * que el fallo real ocurrio.
+     *
+     * Salir de ahi requeria borrar filas de `cache_locks` a mano, y ni siquiera
+     * `php artisan cache:clear` servia: el store de base de datos solo vacia la
+     * tabla `cache`, los candados viven en otra y sobreviven.
+     *
+     * ES UNA PALANCA MANUAL Y PELIGROSA a proposito: si de verdad hay una
+     * corrida trabajando, liberar el candado permite que arranque una segunda
+     * en paralelo. Por eso no se llama sola en ningun sitio, la dispara el
+     * administrador desde el panel y la vista se lo advierte.
+     */
+    public function liberarBloqueo(): void
+    {
+        Cache::lock(self::CLAVE_CANDADO)->forceRelease();
+        Cache::forget(self::CLAVE_EN_CURSO);
+
+        Log::warning('Se libero a mano el bloqueo de la sincronizacion de stock.');
+    }
+
+    /**
      * Modo de actualizacion configurado en el parametro inv.actualizar.
      *
      * EL RESPALDO ES 'automatico' A PROPOSITO: es como se comportaba el sistema

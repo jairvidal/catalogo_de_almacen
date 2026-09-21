@@ -590,4 +590,74 @@ class ParametroAdminTest extends TestCase
         // Y el candado quedo suelto: el boton vuelve a servir enseguida.
         $this->assertFalse(Cache::has(SincronizadorStockRepuestos::CLAVE_EN_CURSO));
     }
+
+    /**
+     * El caso que motivo el boton: una corrida que murio de golpe (IIS cortando
+     * la peticion) deja el candado y la marca puestos, porque el `finally` que
+     * los suelta no llega a correr. A partir de ahi cada intento rebota con 409
+     * sin llamar al ERP, y antes de esto la unica salida era borrar filas de
+     * cache_locks a mano.
+     */
+    public function test_liberar_el_bloqueo_deja_volver_a_sincronizar(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_MANUAL);
+
+        // Se simula el proceso muerto a medias: candado tomado y marca escrita,
+        // sin nadie que las suelte.
+        Cache::lock(SincronizadorStockRepuestos::CLAVE_CANDADO, 900)->get();
+        Cache::put(SincronizadorStockRepuestos::CLAVE_EN_CURSO, now()->getTimestamp(), 900);
+
+        // El fake se arma UNA sola vez: un Http::fake() sin argumentos deja un
+        // comodin que gana sobre los stubs que se registren despues.
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'tok']),
+            '*/api/v1/inventario/consultar' => Http::response(['resultado' => []]),
+        ]);
+
+        // Con el bloqueo puesto, el boton "Actualizar" ni siquiera llama al ERP.
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.parametros.sincronizar'))
+            ->assertStatus(409);
+
+        Http::assertNothingSent();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.parametros.liberar'))
+            ->assertRedirect();
+
+        $this->assertFalse(Cache::has(SincronizadorStockRepuestos::CLAVE_EN_CURSO));
+
+        // Y ahora si: la sincronizacion vuelve a correr de verdad.
+        $this->actingAs($this->admin())
+            ->postJson(route('admin.parametros.sincronizar'))
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+    }
+
+    /** Liberar el bloqueo es editar: el almacenista no puede. */
+    public function test_el_almacenista_no_puede_liberar_el_bloqueo(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_MANUAL);
+
+        $this->actingAs($this->almacenista())
+            ->post(route('admin.parametros.liberar'))
+            ->assertForbidden();
+    }
+
+    /**
+     * La tarjeta dice DESDE CUANDO lleva la corrida: "en curso" a secas no
+     * distingue una que acaba de arrancar de un candado colgado.
+     */
+    public function test_la_tarjeta_dice_desde_cuando_lleva_la_corrida(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_MANUAL);
+
+        Cache::put(SincronizadorStockRepuestos::CLAVE_EN_CURSO, now()->getTimestamp(), 900);
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.parametros.index'))
+            ->assertOk()
+            ->assertSee('Sincronizacion en curso desde las')
+            ->assertSee('Liberar bloqueo');
+    }
 }
