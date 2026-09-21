@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -299,6 +299,23 @@
             "El conteo sale de la misma consulta de totales, sin agregar una consulta adicional",
             "El filtro conserva el buscador, la paginacion y el resto de pastillas",
             "El color del badge sale de los contextuales ya existentes, sin hex sueltos en la vista"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-14",
+          "name": "Registrar en repuestos.fecha_actual_ERP cuando el ERP confirmo el repuesto, y dejar de mover fecha_actualizacion en la sincronizacion de inventario.",
+          "acceptance": [
+            "La columna fecha_actual_ERP es datetime, nullable y conserva ese nombre exacto, con ERP en mayusculas",
+            "Las filas que ya existian quedan en NULL: nunca han recibido confirmacion del ERP y no se les inventa una fecha",
+            "La migracion es aditiva e idempotente: no hace nada si la columna ya existe y down() la quita solo si existe",
+            "La sincronizacion escribe fecha_actual_ERP en todos los repuestos que el ERP confirmo, cambien o no de stock",
+            "La sincronizacion NO mueve fecha_actualizacion en ninguno de los dos caminos de escritura",
+            "Editar el repuesto desde el panel (nombre, foto, ajuste de existencia) si mueve fecha_actualizacion",
+            "Todas las filas de una misma corrida quedan con la misma marca de tiempo",
+            "El contador de actualizados sigue contando los repuestos cuyo stock cambio de valor, no las filas escritas",
+            "Con --simular no se escribe nada, tampoco la fecha",
+            "fecha_actual_ERP no es fillable: la escribe unicamente la sincronizacion"
           ],
           "status": "done"
         }

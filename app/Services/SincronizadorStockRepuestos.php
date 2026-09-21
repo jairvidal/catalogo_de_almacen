@@ -29,6 +29,16 @@ use Illuminate\Support\Facades\Log;
  * consume. La carga inicial de `existencia` es un acto aparte y de una sola vez:
  * App\Services\InicializadorExistenciaRepuestos.
  *
+ * ESCRIBE `stock` Y `fecha_actual_ERP`, Y NO TOCA `fecha_actualizacion`.
+ * fecha_actualizacion es el UPDATED_AT del modelo (ver App\Models\Repuesto), asi
+ * que hasta el 2026-09-21 cada corrida se la movia a miles de repuestos y era
+ * imposible saber si una fila la habia editado una persona en el panel o solo la
+ * habia rozado el ERP. Por eso las dos escrituras van dentro de
+ * Repuesto::withoutTimestamps() y la marca de la corrida va en su propia
+ * columna, fecha_actual_ERP, que se escribe a TODOS los repuestos que el ERP
+ * confirmo —cambien o no de stock— para que una fecha vieja signifique de
+ * verdad "el ERP dejo de reportar este item".
+ *
  * EL CRUCE ES DIRECTO: repuestos.codigo es un entero con indice unico y el
  * campo `item` de la API trae ese mismo numero, asi que se comparan tal cual.
  * Hasta el 2026-08-21 la columna era nvarchar con ceros a la izquierda y hacia
@@ -296,22 +306,36 @@ class SincronizadorStockRepuestos
     {
         $lectura = $this->lector->leer();
 
-        [$porCantidad, $porCambiar, $sinCambio, $sinCorrespondencia] =
+        [$porCantidad, $porCambiar, $alDia, $sinCorrespondencia] =
             $this->cruzarContraElCatalogo($lectura->existencias);
+
+        // UNA SOLA MARCA PARA TODA LA CORRIDA: se calcula aqui y se pasa a las
+        // dos escrituras, de modo que las miles de filas que confirmo el ERP
+        // queden con la misma fecha y se puedan agrupar de un vistazo. Si cada
+        // sentencia usara su propio now(), una corrida de varios minutos
+        // dejaria un abanico de fechas que no distingue una corrida de otra.
+        $confirmadoEn = now();
 
         // Simulando se reporta lo que cambiaria; escribiendo, lo que la base
         // dice que cambio de verdad. Los dos numeros deben coincidir, y si no
         // coinciden la fuente de verdad es la base.
         $actualizados = ($simular || $porCambiar === 0)
             ? $porCambiar
-            : $this->escribirStock($porCantidad);
+            : $this->escribirStock($porCantidad, $confirmadoEn);
+
+        // Los que ya estaban al dia NO cambian de stock, pero el ERP los acaba
+        // de confirmar igual que a los demas: ver marcarConfirmacionErp(). Una
+        // simulacion no escribe nada, tampoco la fecha.
+        if (! $simular && $alDia !== []) {
+            $this->marcarConfirmacionErp($alDia, $confirmadoEn);
+        }
 
         $resultado = new ResultadoSincronizacionStock(
             simulado: $simular,
             paginas: $lectura->paginas,
             recibidos: $lectura->recibidos,
             actualizados: $actualizados,
-            sinCambio: $sinCambio,
+            sinCambio: count($alDia),
             sinCorrespondencia: count($sinCorrespondencia),
             sinItem: $lectura->sinItem,
             itemNoNumerico: $lectura->itemNoNumerico,
@@ -369,15 +393,21 @@ class SincronizadorStockRepuestos
      * convierte a entero las claves numericas de un arreglo, asi que 12.5 y
      * 12.9 acabarian en el mismo grupo y se escribiria una existencia falsa.
      *
+     * DEVUELVE LOS CODIGOS DE LOS QUE YA ESTABAN AL DIA, no solo cuantos son:
+     * esas filas no cambian de stock pero el ERP acaba de confirmarlas, asi que
+     * les toca su fecha_actual_ERP igual que a las demas (ver
+     * marcarConfirmacionErp).
+     *
      * @param  array<int, float>  $existencias  codigo => cantidad
-     * @return array{0: array<string, array{cantidad: float, codigos: list<int>}>, 1: int, 2: int, 3: list<int>}
+     * @return array{0: array<string, array{cantidad: float, codigos: list<int>}>, 1: int, 2: list<int>, 3: list<int>}
      */
     private function cruzarContraElCatalogo(array $existencias): array
     {
         /** @var array<string, array{cantidad: float, codigos: list<int>}> $porCantidad */
         $porCantidad = [];
         $porCambiar = 0;
-        $sinCambio = 0;
+        /** @var list<int> $alDia */
+        $alDia = [];
         /** @var list<int> $sinCorrespondencia */
         $sinCorrespondencia = [];
 
@@ -408,7 +438,7 @@ class SincronizadorStockRepuestos
                 $actual = $enElCatalogo[$codigo];
 
                 if ($actual !== null && abs($actual - $cantidad) < self::TOLERANCIA) {
-                    $sinCambio++;
+                    $alDia[] = $codigo;
 
                     continue;
                 }
@@ -421,27 +451,67 @@ class SincronizadorStockRepuestos
             }
         }
 
-        return [$porCantidad, $porCambiar, $sinCambio, $sinCorrespondencia];
+        return [$porCantidad, $porCambiar, $alDia, $sinCorrespondencia];
     }
 
     /**
-     * Escribe la existencia del ERP en repuestos.stock, y en ninguna otra
-     * columna. `existencia` NO se toca aqui: ver la nota de cabecera.
+     * Escribe la existencia del ERP en repuestos.stock y la fecha de esta
+     * corrida en fecha_actual_ERP. `existencia` NO se toca aqui: ver la nota de
+     * cabecera.
+     *
+     * Las dos columnas viajan en la MISMA sentencia porque son la misma fila y
+     * el mismo lote: marcar la fecha aparte seria recorrer dos veces los mismos
+     * codigos sin ganar nada.
      *
      * @param  array<string, array{cantidad: float, codigos: list<int>}>  $porCantidad
      * @return int filas afectadas
      */
-    private function escribirStock(array $porCantidad): int
+    private function escribirStock(array $porCantidad, Carbon $confirmadoEn): int
     {
         $afectadas = 0;
 
-        foreach ($porCantidad as $grupo) {
-            foreach (array_chunk($grupo['codigos'], self::LOTE) as $lote) {
-                $afectadas += Repuesto::whereIn('codigo', $lote)
-                    ->update(['stock' => $grupo['cantidad']]);
+        // withoutTimestamps: fecha_actualizacion es el updated_at del modelo y
+        // esta sincronizacion no puede moverla. Ver la nota de cabecera.
+        Repuesto::withoutTimestamps(function () use ($porCantidad, $confirmadoEn, &$afectadas): void {
+            foreach ($porCantidad as $grupo) {
+                foreach (array_chunk($grupo['codigos'], self::LOTE) as $lote) {
+                    $afectadas += Repuesto::whereIn('codigo', $lote)
+                        ->update([
+                            'stock' => $grupo['cantidad'],
+                            'fecha_actual_ERP' => $confirmadoEn,
+                        ]);
+                }
             }
-        }
+        });
 
         return $afectadas;
+    }
+
+    /**
+     * Marca fecha_actual_ERP en los repuestos que el ERP confirmo pero que no
+     * cambiaron de stock.
+     *
+     * POR QUE SE MARCAN TAMBIEN ESTOS, Y NO SOLO LOS QUE CAMBIARON: la columna
+     * responde "hace cuanto que el ERP confirmo este item", no "hace cuanto que
+     * se movio". Un repuesto con existencia estable durante meses —que es lo
+     * normal en media bodega— apareceria con la fecha de hace meses y se leeria
+     * como que el ERP dejo de reportarlo, que es justo lo contrario de lo que
+     * pasa. Marcando a todos los confirmados, una fecha vieja significa de
+     * verdad que el item se cayo del inventario del ERP, que es la senal util.
+     *
+     * @param  list<int>  $codigos
+     */
+    private function marcarConfirmacionErp(array $codigos, Carbon $confirmadoEn): void
+    {
+        // withoutTimestamps: esta sentencia existe precisamente para NO tocar
+        // fecha_actualizacion de miles de filas que nadie edito.
+        Repuesto::withoutTimestamps(function () use ($codigos, $confirmadoEn): void {
+            // Mismo lote de 120 de siempre: cada codigo del IN gasta uno de los
+            // 2100 parametros que admite SQL Server.
+            foreach (array_chunk($codigos, self::LOTE) as $lote) {
+                Repuesto::whereIn('codigo', $lote)
+                    ->update(['fecha_actual_ERP' => $confirmadoEn]);
+            }
+        });
     }
 }

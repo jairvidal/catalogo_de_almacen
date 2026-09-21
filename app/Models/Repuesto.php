@@ -19,6 +19,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * Si el ERP pisara `existencia` borraria lo ya despachado y el almacen
  * entregaria contra un saldo fantasma.
+ *
+ * Y dos marcas de tiempo que TAMPOCO son lo mismo:
+ *  - fecha_actual_ERP    cuando el ERP confirmo por ultima vez este repuesto en
+ *                        la sincronizacion de inventario. La escribe SOLO
+ *                        SincronizadorStockRepuestos. Un NULL o una fecha vieja
+ *                        significan "el ERP dejo de reportar este item".
+ *  - fecha_actualizacion cuando alguien lo edito en el panel (nombre, foto,
+ *                        ajuste de existencia). Es el UPDATED_AT del modelo.
+ *
+ * Hasta el 2026-09-21 la sincronizacion movia fecha_actualizacion en cada
+ * corrida y las dos preguntas —"quien toco esto" y "hace cuanto que el ERP no
+ * lo reporta"— se respondian con la misma columna, o sea que no se respondian.
  */
 class Repuesto extends Model
 {
@@ -63,6 +75,8 @@ class Repuesto extends Model
         'tiene_foto',
         'foto',
         'estado',
+        // fecha_actual_ERP NO es fillable a proposito: la escribe unicamente la
+        // sincronizacion con el ERP y jamas un formulario del panel.
     ];
 
     protected function casts(): array
@@ -86,6 +100,10 @@ class Repuesto extends Model
             'tiene_foto' => 'boolean',
             'fecha_creacion' => 'datetime',
             'fecha_actualizacion' => 'datetime',
+            // El nombre lleva ERP en mayusculas por peticion del usuario: SQL
+            // Server no distingue la caja del identificador, pero Eloquent si la
+            // distingue al leer el atributo y al casear.
+            'fecha_actual_ERP' => 'datetime',
         ];
     }
 

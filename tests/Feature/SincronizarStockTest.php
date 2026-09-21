@@ -506,6 +506,149 @@ class SincronizarStockTest extends TestCase
         $this->assertSame(7.0, $repuesto->existencia);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | fecha_actual_ERP y fecha_actualizacion
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Fija fecha_actualizacion a un valor conocido sin pasar por el modelo.
+     *
+     * Va por el query builder con la columna dentro del arreglo a proposito:
+     * fecha_actualizacion es el UPDATED_AT del modelo y Eloquent solo la agrega
+     * sola cuando no venia ya en los valores.
+     */
+    private function fijarFechaActualizacion(int $codigo, string $fecha): void
+    {
+        Repuesto::where('codigo', $codigo)->update(['fecha_actualizacion' => $fecha]);
+    }
+
+    private function fechaActualizacionDe(int $codigo): string
+    {
+        return (string) Repuesto::where('codigo', $codigo)->firstOrFail()
+            ->fecha_actualizacion?->format('Y-m-d H:i:s');
+    }
+
+    /** El ERP confirmo el repuesto: queda la fecha de la corrida. */
+    public function test_la_sincronizacion_escribe_fecha_actual_erp_en_los_que_cambiaron(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        $this->repuesto($codigo, existencia: 7, stock: 0);
+
+        $this->assertNull(Repuesto::where('codigo', $codigo)->value('fecha_actual_ERP'));
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $antesDeCorrer = now()->subSecond();
+        $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+
+        $repuesto = Repuesto::where('codigo', $codigo)->firstOrFail();
+
+        $this->assertSame(250.0, $repuesto->stock);
+        $this->assertNotNull($repuesto->fecha_actual_ERP);
+        $this->assertTrue($repuesto->fecha_actual_ERP->greaterThanOrEqualTo($antesDeCorrer));
+    }
+
+    /**
+     * ESTE ES EL CASO QUE DA SENTIDO A LA COLUMNA: un repuesto con existencia
+     * estable no cambia de stock, pero el ERP acaba de confirmarlo igual. Si
+     * solo se marcaran los que cambian, media bodega apareceria con la fecha de
+     * hace meses y se leeria como que el ERP dejo de reportarla.
+     */
+    public function test_la_sincronizacion_escribe_fecha_actual_erp_en_los_que_ya_estaban_al_dia(): void
+    {
+        $codigo = $this->codigoDePrueba();
+        // Ya trae exactamente el stock que va a reportar el ERP.
+        $this->repuesto($codigo, existencia: 7, stock: 250);
+
+        $vieja = now()->subDays(30)->startOfSecond();
+        Repuesto::where('codigo', $codigo)->update(['fecha_actual_ERP' => $vieja]);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $codigo, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $resultado = app(SincronizadorStockRepuestos::class)->sincronizar();
+
+        // No cambio de stock: sigue contando como "ya al dia", no como actualizado.
+        $this->assertSame(0, $resultado->actualizados);
+        $this->assertSame(1, $resultado->sinCambio);
+
+        $repuesto = Repuesto::where('codigo', $codigo)->firstOrFail();
+
+        $this->assertSame(250.0, $repuesto->stock);
+        $this->assertTrue($repuesto->fecha_actual_ERP->greaterThan($vieja));
+    }
+
+    /**
+     * LA PRUEBA DEL PEDIDO: fecha_actualizacion es el UPDATED_AT del modelo y
+     * dice cuando alguien edito el repuesto en el panel. La sincronizacion la
+     * movia en cada corrida, con lo cual no se podia distinguir una edicion de
+     * una pasada del ERP.
+     */
+    public function test_la_sincronizacion_no_mueve_fecha_actualizacion(): void
+    {
+        $cambia = $this->codigoDePrueba();
+        $alDia = $this->codigoDePrueba();
+        $this->repuesto($cambia, existencia: 7, stock: 0);
+        $this->repuesto($alDia, existencia: 7, stock: 250);
+
+        $marca = '2026-01-15 08:30:00';
+        $this->fijarFechaActualizacion($cambia, $marca);
+        $this->fijarFechaActualizacion($alDia, $marca);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $cambia, 'cant_disp' => 250],
+                ['item' => (string) $alDia, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+
+        // El que cambio de stock y el que ya estaba al dia: ninguno de los dos
+        // caminos de escritura puede tocar fecha_actualizacion.
+        $this->assertSame($marca, $this->fechaActualizacionDe($cambia));
+        $this->assertSame($marca, $this->fechaActualizacionDe($alDia));
+
+        // Y la fecha del ERP si se movio en los dos.
+        $this->assertNotNull(Repuesto::where('codigo', $cambia)->value('fecha_actual_ERP'));
+        $this->assertNotNull(Repuesto::where('codigo', $alDia)->value('fecha_actual_ERP'));
+    }
+
+    /** Una simulacion no deja rastro en ninguna parte, tampoco en la fecha del ERP. */
+    public function test_simular_no_escribe_fecha_actual_erp(): void
+    {
+        $cambia = $this->codigoDePrueba();
+        $alDia = $this->codigoDePrueba();
+        $this->repuesto($cambia, existencia: 7, stock: 4);
+        $this->repuesto($alDia, existencia: 7, stock: 250);
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => [
+                ['item' => (string) $cambia, 'cant_disp' => 500],
+                ['item' => (string) $alDia, 'cant_disp' => 250],
+            ]]),
+        ]);
+
+        $this->artisan('repuestos:sincronizar-stock', ['--simular' => true])->assertSuccessful();
+
+        $this->assertNull(Repuesto::where('codigo', $cambia)->value('fecha_actual_ERP'));
+        $this->assertNull(Repuesto::where('codigo', $alDia)->value('fecha_actual_ERP'));
+        $this->assertSame(4.0, Repuesto::where('codigo', $cambia)->value('stock'));
+    }
+
     /**
      * repuestos.stock es decimal(12,3) porque el almacen mide en KG. Truncar a
      * entero perderia los decimales en silencio.

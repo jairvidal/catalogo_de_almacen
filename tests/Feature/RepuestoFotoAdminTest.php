@@ -16,6 +16,11 @@ use Tests\TestCase;
  * temporal de PHP y el servidor respondia 401 al pedirla. La correccion copia
  * el contenido a un archivo nuevo en public/img en vez de moverlo; estas
  * pruebas sostienen que el archivo llega completo y que el repuesto lo apunta.
+ *
+ * Tambien sostienen el otro lado del cambio del 2026-09-21: la sincronizacion
+ * con el ERP dejo de mover fecha_actualizacion, asi que esa columna tiene que
+ * seguir moviendose cuando la edicion viene del panel. Si dejara de hacerlo,
+ * nadie se enteraria: no hay pantalla que la muestre.
  */
 class RepuestoFotoAdminTest extends TestCase
 {
@@ -101,5 +106,48 @@ class RepuestoFotoAdminTest extends TestCase
             ->assertRedirect(route('admin.repuestos.index'));
 
         $this->assertSame('foto-anterior.jpg', $repuesto->fresh()->foto);
+    }
+
+    /**
+     * Editar el repuesto desde el panel SI mueve fecha_actualizacion: es el
+     * updated_at del modelo y ahora es lo unico que lo mueve, porque la
+     * sincronizacion con el ERP escribe su propia columna (fecha_actual_ERP).
+     */
+    public function test_editar_el_repuesto_desde_el_panel_mueve_fecha_actualizacion(): void
+    {
+        $repuesto = $this->nuevoRepuesto();
+
+        $marca = '2026-01-15 08:30:00';
+        Repuesto::where('id', $repuesto->id)->update(['fecha_actualizacion' => $marca]);
+
+        $this->actingAs($this->admin())
+            ->put(route('admin.repuestos.update', $repuesto), $this->datosFormulario($repuesto, [
+                'nombre' => 'Nombre corregido a mano',
+            ]))
+            ->assertRedirect(route('admin.repuestos.index'));
+
+        $actualizado = $repuesto->fresh();
+
+        $this->assertSame('Nombre corregido a mano', $actualizado->nombre);
+        $this->assertNotSame($marca, $actualizado->fecha_actualizacion->format('Y-m-d H:i:s'));
+        $this->assertTrue($actualizado->fecha_actualizacion->greaterThan($marca));
+    }
+
+    /** El ajuste rapido de existencia desde el listado tambien es una edicion. */
+    public function test_ajustar_la_existencia_desde_el_panel_mueve_fecha_actualizacion(): void
+    {
+        $repuesto = $this->nuevoRepuesto();
+
+        $marca = '2026-01-15 08:30:00';
+        Repuesto::where('id', $repuesto->id)->update(['fecha_actualizacion' => $marca]);
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.repuestos.stock', $repuesto), ['existencia' => 12])
+            ->assertRedirect();
+
+        $actualizado = $repuesto->fresh();
+
+        $this->assertSame(12.0, $actualizado->existencia);
+        $this->assertTrue($actualizado->fecha_actualizacion->greaterThan($marca));
     }
 }
