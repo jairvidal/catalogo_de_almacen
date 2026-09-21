@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -305,6 +305,21 @@
             "El estilo vive en app.css con tokens --ca-*, sin hex ni estilos sueltos en las vistas",
             "La URL de la imagen se genera con asset() para que funcione tambien bajo subcarpeta",
             "No se imprime: queda oculta en @media print"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "UI-03",
+          "name": "Quitar las tarjetas de conteo por estado de la pantalla Listos para reclamar, sin tocar el listado general de Solicitudes.",
+          "acceptance": [
+            "En Listos para reclamar no aparecen las tarjetas Todas, Pendientes, En proceso, Listos ni Entregadas",
+            "El listado general de Solicitudes sigue mostrando las cinco tarjetas y su filtro por estado sigue funcionando",
+            "Listos para reclamar sigue mostrando solo las solicitudes en estado listo",
+            "La busqueda, la paginacion y las acciones de cada fila quedan iguales en las dos pantallas",
+            "La bandera la decide el controlador y la recibe la vista: no hay ifs sobre el request dentro del Blade",
+            "Los conteos por estado no se consultan en la pantalla que no los pinta",
+            "La entrada del menu marca 'estas aqui' en la pantalla correcta",
+            "No quedan partials ni clases de CSS sin uso"
           ],
           "status": "done"
         }

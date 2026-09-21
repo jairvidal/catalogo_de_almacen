@@ -50,6 +50,8 @@ Consecuencias de usar SQL Server que ya están resueltas en el código y hay que
 
 Estados: `pendiente → en_proceso → listo → entregada`, o `rechazada`. Las constantes y sus etiquetas/colores/iconos de Bootstrap viven en `Solicitud::ESTADOS`; las vistas leen `estado_label` / `estado_color` / `estado_icono`.
 
+**Las dos bandejas del panel comparten `admin/solicitudes/index.blade.php` y se distinguen por la RUTA, no por el request.** `admin.solicitudes.index` es el listado general, con las cinco tarjetas de conteo por estado que también son sus enlaces de filtro; `admin.solicitudes.listos` (`GET admin/solicitudes/listos`, declarada **antes** de `/{solicitud}` para que el binding no la capture) es "Listos para reclamar", donde el estado lo fija la ruta y por eso **no** se pintan esas tarjetas ni se ejecuta la consulta de conteos. La vista recibe del controlador `mostrarMetricas`, `rutaListado` y `parametrosBase` — el buscador y el botón de limpiar vuelven a su propia pantalla con esas variables, y **no se decide nada leyendo `request('estado')` dentro del Blade**: hacerlo también borraría las tarjetas cuando el usuario llega a `?estado=listo` haciendo clic en la tarjeta "Listos", que es filtrar y no cambiar de pantalla. La consulta la comparten en `SolicitudAdminController::bandeja()`; una bandeja nueva va por ahí, no por una copia.
+
 ### Correo
 
 Un fallo de SMTP **nunca** debe tumbar un cambio de estado. `notificarPedidoListo()` captura la excepción, la registra en `Log` y la guarda en `solicitudes.error_notificacion`; el éxito marca `notificado_at`. La acción "Reenviar aviso" del panel existe para eso. El aviso al almacén de solicitudes nuevas es opcional (`ALMACEN_NOTIFICACION_EMAIL`, lista separada por comas).
@@ -277,5 +279,5 @@ Todo el color vive en los tokens `--ca-*` del `:root` de `app.css`, que además 
 - La lógica de negocio con transacciones vive en `app/Services`; los controladores solo validan, delegan y redirigen con `back()->with(...)`.
 - Los repuestos no se borran: `destroy` solo pone `activo = false`, porque los items históricos apuntan al registro.
 - **Tablas nuevas**: `tbl_<nombre>` con `id` bigint autoincremental y columnas con prefijo `col_` (ver `tbl_rol`, `tbl_categoria`, `tbl_parametro`). Las tablas anteriores a esta convención (`repuestos`, `solicitudes`, `solicitud_items`, `users`) se dejan como están; las FK que se les agregan sí van sin prefijo para no mezclar estilos dentro de la misma tabla (`repuestos.categoria_id`, `users.rol_id`).
-- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.0**.
+- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.1**.
 - `phpunit.xml` apunta a la base real, así que las pruebas usan `DatabaseTransactions` y **no** `RefreshDatabase` (ver `tests/Feature/RolAdminTest`).

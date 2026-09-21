@@ -32,7 +32,7 @@
 <ul class="nav nav-pills flex-column">
     @if ($verSolicitudes)
         <li class="nav-item">
-            <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.solicitudes.*') ? 'active' : '' }}"
+            <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.solicitudes.index') || request()->routeIs('admin.solicitudes.show') ? 'active' : '' }}"
                href="{{ route('admin.solicitudes.index') }}">
                 <i class="bi bi-inbox me-2"></i>
                 <span class="flex-grow-1">Solicitudes</span>
@@ -43,8 +43,8 @@
         </li>
 
         <li class="nav-item">
-            <a class="nav-link {{ request()->routeIs('admin.solicitudes.index') && request('estado') === 'listo' ? 'active' : '' }}"
-               href="{{ route('admin.solicitudes.index', ['estado' => 'listo']) }}">
+            <a class="nav-link {{ request()->routeIs('admin.solicitudes.listos') ? 'active' : '' }}"
+               href="{{ route('admin.solicitudes.listos') }}">
                 <i class="bi bi-bag-check me-2"></i>Listos para reclamar
             </a>
         </li>

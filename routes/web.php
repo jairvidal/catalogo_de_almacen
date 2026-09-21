@@ -64,6 +64,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::controller(SolicitudAdminController::class)->prefix('solicitudes')->name('solicitudes.')->group(function () {
             Route::get('/', 'index')->name('index')->middleware('permiso:solicitudes,ver');
+            // Bandeja de "Listos para reclamar": el estado lo fija la ruta, no
+            // la URL. Va ANTES de /{solicitud} para que el binding no la capture.
+            Route::get('/listos', 'listos')->name('listos')->middleware('permiso:solicitudes,ver');
             Route::get('/{solicitud}', 'show')->name('show')->middleware('permiso:solicitudes,ver');
             Route::post('/{solicitud}/tomar', 'tomar')->name('tomar')->middleware('permiso:solicitudes,editar');
             Route::post('/{solicitud}/listo', 'marcarListo')->name('listo')->middleware('permiso:solicitudes,editar');

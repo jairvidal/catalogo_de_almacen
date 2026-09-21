@@ -15,7 +15,10 @@
 
     {{-- ------------------------------------------------------------------ --}}
     {{-- Metricas por estado                                                --}}
+    {{-- Solo en el listado general: en "Listos para reclamar" el estado lo  --}}
+    {{-- fija la ruta, asi que estas tarjetas no tendrian a donde filtrar.   --}}
     {{-- ------------------------------------------------------------------ --}}
+    @if ($mostrarMetricas)
     <div class="row row-cols-2 row-cols-lg-5 g-3 mb-4">
         @php
             $tarjetas = [
@@ -42,13 +45,16 @@
             </div>
         @endforeach
     </div>
+    @endif
 
     {{-- ------------------------------------------------------------------ --}}
     {{-- Buscador                                                           --}}
     {{-- ------------------------------------------------------------------ --}}
-    <form method="GET" action="{{ route('admin.solicitudes.index') }}" class="card border-0 shadow-sm mb-3">
+    <form method="GET" action="{{ route($rutaListado) }}" class="card border-0 shadow-sm mb-3">
         <div class="card-body py-3">
-            <input type="hidden" name="estado" value="{{ $estadoActivo }}">
+            @foreach ($parametrosBase as $nombre => $valor)
+                <input type="hidden" name="{{ $nombre }}" value="{{ $valor }}">
+            @endforeach
             <div class="row g-2">
                 <div class="col-md-9">
                     <div class="input-group">
@@ -60,7 +66,7 @@
                 <div class="col-md-3 d-flex gap-2">
                     <button type="submit" class="btn btn-marca flex-grow-1">Buscar</button>
                     @if ($termino !== '')
-                        <a href="{{ route('admin.solicitudes.index', ['estado' => $estadoActivo]) }}"
+                        <a href="{{ route($rutaListado, $parametrosBase) }}"
                            class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
                     @endif
                 </div>

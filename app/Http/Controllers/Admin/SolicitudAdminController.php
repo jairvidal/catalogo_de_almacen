@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Repuesto;
 use App\Models\Solicitud;
 use App\Services\SolicitudService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,10 +22,53 @@ class SolicitudAdminController extends Controller
         $estado = $request->string('estado')->toString();
         $termino = $request->string('q')->toString();
 
-        $solicitudes = Solicitud::query()
+        $conteos = Solicitud::query()
+            ->selectRaw('estado, COUNT(*) as total')
+            ->groupBy('estado')
+            ->pluck('total', 'estado');
+
+        return view('admin.solicitudes.index', [
+            'solicitudes' => $this->bandeja($estado !== '' ? $estado : null, $termino),
+            'conteos' => $conteos,
+            'estadoActivo' => $estado,
+            'termino' => $termino,
+            'totalGeneral' => $conteos->sum(),
+            'mostrarMetricas' => true,
+            'rutaListado' => 'admin.solicitudes.index',
+            'parametrosBase' => ['estado' => $estado],
+        ]);
+    }
+
+    /**
+     * Bandeja de lo que ya esta elaborado y espera a que lo reclamen.
+     *
+     * Reusa la vista del listado, pero aqui el estado lo fija la RUTA y no la
+     * URL: por eso no se pintan las tarjetas de filtro por estado ni se
+     * consultan sus conteos. El listado general sigue mostrandolas.
+     */
+    public function listos(Request $request): View
+    {
+        $termino = $request->string('q')->toString();
+
+        return view('admin.solicitudes.index', [
+            'solicitudes' => $this->bandeja(Solicitud::ESTADO_LISTO, $termino),
+            'termino' => $termino,
+            'mostrarMetricas' => false,
+            'rutaListado' => 'admin.solicitudes.listos',
+            'parametrosBase' => [],
+        ]);
+    }
+
+    /**
+     * Consulta comun de las dos bandejas: mismo orden, mismo buscador y misma
+     * paginacion. Un solo sitio para que no se separen.
+     */
+    private function bandeja(?string $estado, string $termino): LengthAwarePaginator
+    {
+        return Solicitud::query()
             ->with('atendidaPor')
             ->withCount('items')
-            ->estado($estado !== '' ? $estado : null)
+            ->estado($estado)
             ->buscar($termino)
             ->orderByRaw("CASE estado
                 WHEN 'pendiente' THEN 1
@@ -34,19 +78,6 @@ class SolicitudAdminController extends Controller
             ->orderByDesc('created_at')
             ->paginate(15)
             ->withQueryString();
-
-        $conteos = Solicitud::query()
-            ->selectRaw('estado, COUNT(*) as total')
-            ->groupBy('estado')
-            ->pluck('total', 'estado');
-
-        return view('admin.solicitudes.index', [
-            'solicitudes' => $solicitudes,
-            'conteos' => $conteos,
-            'estadoActivo' => $estado,
-            'termino' => $termino,
-            'totalGeneral' => $conteos->sum(),
-        ]);
     }
 
     /**
