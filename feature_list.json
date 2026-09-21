@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": ["pending", "in_progress", "done", "blocked"]
@@ -272,6 +272,19 @@
             "No cambia como filtra cada campo: columnas, opciones, nombres de parametro y autoenvio intactos",
             "Si llegan los dos por URL manda categoria_id y se ignora categoria, tambien en los enlaces de la paginacion",
             "El select bloqueado se ve deshabilitado y un texto de ayuda explica por que"
+          ],
+          "status": "done"
+        },
+        {
+          "id": "CAT-13",
+          "name": "Agregar el indicador y filtro Sobre stock al listado de Catalogo e inventario del panel.",
+          "acceptance": [
+            "La pastilla Sobre stock aparece junto a Todos, Existencias bajas, Agotados e Inactivos, con el mismo marcado y su badge de conteo",
+            "Cuenta y filtra los repuestos cuya existencia supera stock_maximo",
+            "Los repuestos con stock_maximo nulo o en 0 no entran al conteo ni al filtro: un maximo sin definir no es un maximo de cero",
+            "El conteo sale de la misma consulta de totales, sin agregar una consulta adicional",
+            "El filtro conserva el buscador, la paginacion y el resto de pastillas",
+            "El color del badge sale de los contextuales ya existentes, sin hex sueltos en la vista"
           ],
           "status": "done"
         }

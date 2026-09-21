@@ -25,6 +25,11 @@ class RepuestoAdminController extends Controller
             ->when($filtro === 'agotados', fn ($q) => $q->where('existencia', '<=', 0))
             ->when($filtro === 'bajos', fn ($q) => $q->whereColumn('existencia', '<=', 'stock_minimo')
                 ->where('existencia', '>', 0))
+            // Un stock_maximo en 0 (o nulo) es un maximo sin definir, no un
+            // maximo de cero: 25.086 de los 28.490 repuestos estan asi, y sin
+            // este filtro cualquiera con existencia daria "sobre stock".
+            ->when($filtro === 'sobre_stock', fn ($q) => $q->where('stock_maximo', '>', 0)
+                ->whereColumn('existencia', '>', 'stock_maximo'))
             ->when($filtro === 'inactivos', fn ($q) => $q->where('estado', Repuesto::ESTADO_INACTIVO))
             ->orderBy('codigo')
             ->paginate(20)
@@ -157,9 +162,9 @@ class RepuestoAdminController extends Controller
     }
 
     /**
-     * Los cuatro conteos del encabezado en una sola pasada.
+     * Los cinco conteos del encabezado en una sola pasada.
      *
-     * Con 28.490 filas, cuatro COUNT separados eran cuatro recorridos de la
+     * Con 28.490 filas, cinco COUNT separados eran cinco recorridos de la
      * tabla en cada carga del listado.
      *
      * @return array<string, int>
@@ -170,6 +175,11 @@ class RepuestoAdminController extends Controller
             ->selectRaw('count(*) as todos')
             ->selectRaw('sum(case when existencia <= 0 then 1 else 0 end) as agotados')
             ->selectRaw('sum(case when existencia > 0 and existencia <= stock_minimo then 1 else 0 end) as bajos')
+            // stock_maximo > 0 tambien descarta el nulo (null > 0 no es cierto
+            // en SQL Server): un maximo sin definir no es un maximo de cero, y
+            // sin ese recorte 4.592 repuestos saldrian "sobre stock" en vez de
+            // 703, porque 25.086 filas traen el maximo en 0.
+            ->selectRaw('sum(case when stock_maximo > 0 and existencia > stock_maximo then 1 else 0 end) as sobre_stock')
             ->selectRaw('sum(case when estado = ? then 1 else 0 end) as inactivos', [Repuesto::ESTADO_INACTIVO])
             ->first();
 
@@ -177,6 +187,7 @@ class RepuestoAdminController extends Controller
             'todos' => (int) $fila->todos,
             'agotados' => (int) $fila->agotados,
             'bajos' => (int) $fila->bajos,
+            'sobre_stock' => (int) $fila->sobre_stock,
             'inactivos' => (int) $fila->inactivos,
         ];
     }

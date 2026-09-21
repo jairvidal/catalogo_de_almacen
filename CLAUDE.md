@@ -178,6 +178,15 @@ Las dos aceptan `--simular` (reporta sin escribir **nada**: ni el saldo, ni la b
 - **Ninguno de los dos comandos va al programador de tareas.** Ver `routes/console.php`: allí solo está la sincronización de `stock`.
 - Los contadores del resultado son **excluyentes y exhaustivos** (`total = ya_con_saldo + candidatas + sin_stock`), para que un descuadre se vea a simple vista en vez de pasar por bueno. Simulación sobre la base real (2026-08-26): 28.490 repuestos, **7.229** recibirían saldo, 0 con saldo previo, 21.261 siguen en 0 porque el ERP no reporta `stock`.
 
+### Indicadores del listado de catálogo (`/admin/repuestos`)
+
+Cinco pastillas de filtro con su conteo: **Todos / Existencias bajas / Agotados / Inactivos / Sobre stock**. Las pinta el arreglo `$filtros` de `admin/repuestos/index.blade.php` recorriendo `clave => [etiqueta, conteo, color]`; una pastilla nueva es una entrada más en ese arreglo, más su `when()` en `RepuestoAdminController::index` y su `selectRaw` en `totales()`.
+
+- **Los cinco conteos salen de UNA sola consulta** (`totales()`, un `selectRaw` por indicador). Con 28.490 filas, cada `COUNT` suelto es un recorrido más de la tabla en cada carga del listado: no agregue una consulta aparte.
+- **`stock_maximo` en 0 o nulo es un máximo SIN DEFINIR, no un máximo de cero**, y por eso "Sobre stock" (`existencia > stock_maximo`) exige además `stock_maximo > 0`. Hoy 25.086 de las 28.490 filas traen el máximo en 0: sin ese recorte el indicador diría 4.592 repuestos excedidos en vez de 703. La condición se escribe `stock_maximo > 0` y no con un `IS NOT NULL` aparte porque en SQL Server `null > 0` tampoco es cierto.
+- El badge de "Sobre stock" va en `success`: los dos rojos son la marca y Agotados, `warning` es Existencias bajas, y `info` está reasignado a `--ca-neutro-700` con el texto en negro que le deja Bootstrap, así que no se lee.
+- El menú lateral **no** muestra conteos, y `totales()` solo lo consume esta pantalla: no hay un segundo sitio que mantener sincronizado.
+
 ### Categorías (`tbl_categoria`)
 
 **La categoría de un repuesto es el color del marco impreso en el borde de su foto.** Las imágenes de `public/img` traen ese marco y es el único dato de categoría que existe: los nombres no correlacionan (cada color mezcla filtros, válvulas, tornillos y rodamientos), así que **nunca intente inferir la categoría por el nombre**.
@@ -279,5 +288,5 @@ Todo el color vive en los tokens `--ca-*` del `:root` de `app.css`, que además 
 - La lógica de negocio con transacciones vive en `app/Services`; los controladores solo validan, delegan y redirigen con `back()->with(...)`.
 - Los repuestos no se borran: `destroy` solo pone `activo = false`, porque los items históricos apuntan al registro.
 - **Tablas nuevas**: `tbl_<nombre>` con `id` bigint autoincremental y columnas con prefijo `col_` (ver `tbl_rol`, `tbl_categoria`, `tbl_parametro`). Las tablas anteriores a esta convención (`repuestos`, `solicitudes`, `solicitud_items`, `users`) se dejan como están; las FK que se les agregan sí van sin prefijo para no mezclar estilos dentro de la misma tabla (`repuestos.categoria_id`, `users.rol_id`).
-- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.1**.
+- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.2**.
 - `phpunit.xml` apunta a la base real, así que las pruebas usan `DatabaseTransactions` y **no** `RefreshDatabase` (ver `tests/Feature/RolAdminTest`).

@@ -35,6 +35,10 @@
                 'bajos' => ['Existencias bajas', $totales['bajos'], 'warning'],
                 'agotados' => ['Agotados', $totales['agotados'], 'danger'],
                 'inactivos' => ['Inactivos', $totales['inactivos'], 'secondary'],
+                // Verde y no rojo: un exceso no es una averia de despacho como
+                // el agotado, y los dos rojos ya estan tomados por la marca y
+                // por lo destructivo.
+                'sobre_stock' => ['Sobre stock', $totales['sobre_stock'], 'success'],
             ];
         @endphp
 
