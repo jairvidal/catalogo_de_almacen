@@ -59,10 +59,15 @@ class PermisoAdminTest extends TestCase
         return $this->usuario($this->rolDelSistema(User::ROL_ALMACENISTA));
     }
 
-    private function nuevoRol(bool $gestionaCatalogo = false): Rol
+    /**
+     * Rol nuevo del panel. La clave importa desde que el modulo de permisos
+     * quedo reservado a Funcionalidad::ROLES_ADMINISTRADORES: por defecto se
+     * genera una clave que NO esta en esa lista.
+     */
+    private function nuevoRol(bool $gestionaCatalogo = false, ?string $clave = null): Rol
     {
         return Rol::create([
-            'col_clave' => 'perm_'.substr(uniqid(), -8),
+            'col_clave' => $clave ?? 'perm_'.substr(uniqid(), -8),
             'col_nombre' => 'Perfil de prueba',
             'col_gestiona_catalogo' => $gestionaCatalogo,
             'col_activo' => true,
@@ -263,7 +268,9 @@ class PermisoAdminTest extends TestCase
 
     public function test_ver_el_modulo_de_permisos_no_alcanza_para_guardar(): void
     {
-        $supervisor = $this->nuevoRol();
+        // Clave de la lista blanca: sin ella el modulo esta reservado y el
+        // perfil no llegaria ni a ver la matriz.
+        $supervisor = $this->nuevoRol(clave: 'administrador');
         $this->guardarMatriz($supervisor, [Funcionalidad::PERMISOS => ['ver']]);
 
         $usuario = $this->usuario($supervisor, User::ROL_ALMACENISTA);
@@ -377,7 +384,9 @@ class PermisoAdminTest extends TestCase
 
     public function test_los_listados_del_panel_se_pintan_con_y_sin_permisos(): void
     {
-        $soloVer = $this->nuevoRol();
+        // Con clave de la lista blanca, porque el recorrido incluye la
+        // pantalla de permisos, que esta reservada a esos perfiles.
+        $soloVer = $this->nuevoRol(clave: 'administrador');
         $this->guardarMatriz($soloVer, [
             Funcionalidad::SOLICITUDES => ['ver'],
             Funcionalidad::REPUESTOS => ['ver'],
@@ -455,7 +464,10 @@ class PermisoAdminTest extends TestCase
         $despacha = $this->usuario($this->nuevoRol(gestionaCatalogo: false), User::ROL_ALMACENISTA);
 
         $this->actingAs($gestiona)->get(route('admin.repuestos.index'))->assertOk();
-        $this->actingAs($gestiona)->get(route('admin.permisos.index'))->assertOk();
+        $this->actingAs($gestiona)->get(route('admin.roles.index'))->assertOk();
+        // Permisos ya no se hereda: esta reservado a los perfiles
+        // administradores y este rol no lleva una de esas claves.
+        $this->actingAs($gestiona)->get(route('admin.permisos.index'))->assertForbidden();
 
         $this->actingAs($despacha)->get(route('admin.solicitudes.index'))->assertOk();
         $this->actingAs($despacha)->get(route('admin.repuestos.index'))->assertForbidden();
@@ -503,6 +515,145 @@ class PermisoAdminTest extends TestCase
             ->assertSessionHasErrors('permisos.'.$this->funcionalidadId(Funcionalidad::REPUESTOS));
 
         $this->assertNull($this->filaGuardada($rol, Funcionalidad::REPUESTOS));
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Modulo de permisos reservado a los perfiles administradores */
+    /* ------------------------------------------------------------------ */
+
+    public function test_un_perfil_no_autorizado_no_entra_al_modulo_aunque_la_matriz_lo_conceda(): void
+    {
+        $rol = $this->nuevoRol(gestionaCatalogo: true);
+        $this->guardarMatriz($rol, [
+            Funcionalidad::PERMISOS => ['ver', 'editar', 'eliminar'],
+            Funcionalidad::REPUESTOS => ['ver'],
+        ]);
+
+        // El servicio no escribe la concesion reservada, llegue marcada o no.
+        $this->assertSame(
+            ['ver' => false, 'editar' => false, 'eliminar' => false],
+            $this->filaGuardada($rol, Funcionalidad::PERMISOS)
+        );
+
+        // Y aunque alguien la escriba a mano en la base, puede() la niega: la
+        // lista blanca se evalua antes que la matriz.
+        DB::update(
+            'update tbl_rol_funcionalidad set col_ver = 1, col_editar = 1, col_eliminar = 1
+              where col_rol_id = ? and col_funcionalidad_id = ?',
+            [$rol->id, $this->funcionalidadId(Funcionalidad::PERMISOS)]
+        );
+
+        $usuario = $this->usuario($rol, User::ROL_ALMACENISTA);
+
+        $this->assertFalse($usuario->puede(Funcionalidad::PERMISOS, Funcionalidad::ACCION_VER));
+        $this->assertFalse($usuario->puede(Funcionalidad::PERMISOS, Funcionalidad::ACCION_EDITAR));
+        $this->assertFalse($usuario->puede(Funcionalidad::PERMISOS, Funcionalidad::ACCION_ELIMINAR));
+
+        $this->actingAs($usuario)->get(route('admin.permisos.index'))->assertForbidden();
+        $this->actingAs($usuario)
+            ->put(route('admin.permisos.update', $rol), [
+                'permisos' => [$this->funcionalidadId(Funcionalidad::CATEGORIAS) => ['ver' => '1']],
+            ])
+            ->assertForbidden();
+
+        // El menu tampoco ofrece la entrada, y el resto de la matriz vive.
+        $this->actingAs($usuario)
+            ->get(route('admin.repuestos.index'))
+            ->assertOk()
+            ->assertDontSee('href="'.route('admin.permisos.index').'"', false)
+            ->assertDontSee('Funciones por perfil');
+    }
+
+    public function test_un_perfil_de_la_lista_blanca_entra_y_guarda(): void
+    {
+        $administrador = $this->nuevoRol(clave: 'administrador');
+        $this->guardarMatriz($administrador, [Funcionalidad::PERMISOS => ['ver', 'editar']]);
+
+        // A este si se le guarda la concesion: esta en la lista blanca.
+        $this->assertSame(
+            ['ver' => true, 'editar' => true, 'eliminar' => false],
+            $this->filaGuardada($administrador, Funcionalidad::PERMISOS)
+        );
+
+        $usuario = $this->usuario($administrador, User::ROL_ALMACENISTA);
+        $otro = $this->nuevoRol();
+
+        $this->actingAs($usuario)
+            ->get(route('admin.permisos.index', ['rol_id' => $otro->id]))
+            ->assertOk()
+            ->assertSee('Funcionalidades del sistema');
+
+        $this->actingAs($usuario)
+            ->put(route('admin.permisos.update', $otro), [
+                'permisos' => [$this->funcionalidadId(Funcionalidad::CATEGORIAS) => ['ver' => '1']],
+            ])
+            ->assertRedirect(route('admin.permisos.index', ['rol_id' => $otro->id]))
+            ->assertSessionHas('exito');
+
+        $this->assertSame(
+            ['ver' => true, 'editar' => false, 'eliminar' => false],
+            $this->filaGuardada($otro, Funcionalidad::CATEGORIAS)
+        );
+    }
+
+    public function test_un_perfil_no_autorizado_conserva_las_demas_funcionalidades_por_matriz(): void
+    {
+        $rol = $this->nuevoRol();
+        $this->guardarMatriz($rol, [
+            Funcionalidad::CATEGORIAS => ['ver', 'editar'],
+            Funcionalidad::SOLICITUDES => ['ver'],
+            Funcionalidad::PERMISOS => ['ver', 'editar'],
+        ]);
+
+        $usuario = $this->usuario($rol, User::ROL_ALMACENISTA);
+
+        $this->actingAs($usuario)->get(route('admin.categorias.index'))->assertOk();
+        $this->actingAs($usuario)->get(route('admin.categorias.create'))->assertOk();
+        $this->actingAs($usuario)->get(route('admin.solicitudes.index'))->assertOk();
+        $this->actingAs($usuario)->get(route('admin.permisos.index'))->assertForbidden();
+
+        $this->assertTrue($usuario->puede(Funcionalidad::CATEGORIAS, Funcionalidad::ACCION_EDITAR));
+        $this->assertFalse($usuario->puede(Funcionalidad::PERMISOS, Funcionalidad::ACCION_VER));
+    }
+
+    public function test_la_pantalla_bloquea_las_casillas_reservadas_de_un_perfil_no_autorizado(): void
+    {
+        $rol = $this->nuevoRol(gestionaCatalogo: true);
+        $permisosId = $this->funcionalidadId(Funcionalidad::PERMISOS);
+        $repuestosId = $this->funcionalidadId(Funcionalidad::REPUESTOS);
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.permisos.index', ['rol_id' => $rol->id]))
+            ->assertOk()
+            ->assertSee('data-permiso-reservado="'.Funcionalidad::PERMISOS.'"', false)
+            ->getContent();
+
+        $casillas = $this->casillas($html);
+
+        foreach (array_keys(Funcionalidad::ACCIONES) as $accion) {
+            $reservada = $casillas["permisos[{$permisosId}][{$accion}]"];
+
+            $this->assertMatchesRegularExpression('/\sdisabled\b/', $reservada);
+            $this->assertDoesNotMatchRegularExpression('/\schecked\b/', $reservada);
+
+            // Las demas del mismo rol siguen editables y con su heredado.
+            $libre = $casillas["permisos[{$repuestosId}][{$accion}]"];
+
+            $this->assertDoesNotMatchRegularExpression('/\sdisabled\b/', $libre);
+            $this->assertMatchesRegularExpression('/\schecked\b/', $libre);
+        }
+    }
+
+    public function test_el_perfil_administrador_del_sistema_no_ve_bloqueada_la_reservada(): void
+    {
+        $rolAdmin = $this->rolDelSistema(User::ROL_ADMIN);
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.permisos.index', ['rol_id' => $rolAdmin->id]))
+            ->assertOk()
+            ->assertDontSee('data-permiso-reservado=', false);
+
+        $this->assertTrue($this->admin()->puede(Funcionalidad::PERMISOS, Funcionalidad::ACCION_EDITAR));
     }
 
     public function test_una_accion_desconocida_en_el_codigo_falla_en_voz_alta(): void

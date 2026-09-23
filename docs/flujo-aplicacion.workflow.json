@@ -1,0 +1,309 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Flujo del catalogo de repuestos del almacen",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "Pantallas"
+        },
+        "backend": {
+          "label": "Servicios"
+        },
+        "security": {
+          "label": "Permisos"
+        },
+        "messagebus": {
+          "label": "Correo"
+        },
+        "external": {
+          "label": "ERP"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "publico",
+      "label": "Solicitante (sin registro)"
+    },
+    {
+      "id": "sistema",
+      "label": "Servicios de la aplicacion"
+    },
+    {
+      "id": "almacen",
+      "label": "Panel del almacen /admin"
+    },
+    {
+      "id": "cierre",
+      "label": "Aviso y entrega"
+    },
+    {
+      "id": "excepcion",
+      "label": "Cierre por rechazo",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "armar",
+      "label": "Armar el pedido",
+      "fromCol": 0,
+      "toCol": 2
+    },
+    {
+      "id": "registrar",
+      "label": "Registrar",
+      "fromCol": 3,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "despachar",
+      "label": "Despachar y entregar",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "catalogo",
+    "carrito",
+    "datos",
+    "crear",
+    "pendiente",
+    "tomar",
+    "listo",
+    "entrega"
+  ],
+  "nodes": [
+    {
+      "id": "catalogo",
+      "lane": "publico",
+      "col": 0,
+      "type": "frontend",
+      "label": "Catalogo publico",
+      "sublabel": "buscar y filtrar",
+      "width": 116
+    },
+    {
+      "id": "carrito",
+      "lane": "publico",
+      "col": 1,
+      "type": "frontend",
+      "label": "Carrito en sesion",
+      "sublabel": "topa contra existencia",
+      "width": 120
+    },
+    {
+      "id": "datos",
+      "lane": "publico",
+      "col": 2,
+      "type": "frontend",
+      "label": "Datos del pedido",
+      "sublabel": "nombre, cedula, correo",
+      "width": 116
+    },
+    {
+      "id": "erp",
+      "lane": "sistema",
+      "col": 0,
+      "type": "external",
+      "label": "API inventario ERP",
+      "sublabel": "sincroniza stock",
+      "width": 124
+    },
+    {
+      "id": "crear",
+      "lane": "sistema",
+      "col": 3,
+      "type": "backend",
+      "label": "Crear solicitud",
+      "sublabel": "SOL-2026-000123",
+      "tag": "transaccion",
+      "width": 112
+    },
+    {
+      "id": "inventario",
+      "lane": "sistema",
+      "col": 4,
+      "type": "backend",
+      "label": "Descontar existencia",
+      "sublabel": "update condicionado",
+      "tag": "solo aqui",
+      "width": 140
+    },
+    {
+      "id": "acceso",
+      "lane": "almacen",
+      "col": 2,
+      "type": "security",
+      "label": "Acceso al panel",
+      "sublabel": "matriz de permisos",
+      "tag": "User::puede()",
+      "width": 120
+    },
+    {
+      "id": "pendiente",
+      "lane": "almacen",
+      "col": 3,
+      "type": "frontend",
+      "label": "Bandeja pendiente",
+      "sublabel": "estado pendiente",
+      "width": 120
+    },
+    {
+      "id": "tomar",
+      "lane": "almacen",
+      "col": 4,
+      "type": "backend",
+      "label": "Tomar",
+      "sublabel": "estado en proceso",
+      "width": 104
+    },
+    {
+      "id": "listo",
+      "lane": "almacen",
+      "col": 5,
+      "type": "backend",
+      "label": "Listo para reclamar",
+      "sublabel": "estado listo",
+      "width": 132
+    },
+    {
+      "id": "correo",
+      "lane": "cierre",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Aviso por correo",
+      "sublabel": "pedido listo",
+      "width": 116
+    },
+    {
+      "id": "entrega",
+      "lane": "cierre",
+      "col": 5,
+      "type": "frontend",
+      "label": "Entregada",
+      "sublabel": "reclama con cedula",
+      "width": 116
+    },
+    {
+      "id": "rechazo",
+      "lane": "excepcion",
+      "col": 3,
+      "type": "security",
+      "label": "Rechazar",
+      "sublabel": "devuelve el inventario",
+      "width": 116
+    }
+  ],
+  "edges": [
+    {
+      "from": "erp",
+      "to": "catalogo",
+      "label": "stock, nunca existencia",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "from": "catalogo",
+      "to": "carrito",
+      "label": "agregar repuesto"
+    },
+    {
+      "from": "carrito",
+      "to": "datos",
+      "label": "enviar pedido"
+    },
+    {
+      "from": "datos",
+      "to": "crear",
+      "label": "POST /solicitud/enviar",
+      "variant": "emphasis"
+    },
+    {
+      "from": "crear",
+      "to": "pendiente",
+      "label": "queda pendiente",
+      "variant": "emphasis"
+    },
+    {
+      "from": "acceso",
+      "to": "pendiente",
+      "label": "solicitudes,ver",
+      "role": "branch",
+      "variant": "security"
+    },
+    {
+      "from": "pendiente",
+      "to": "tomar",
+      "label": "toma"
+    },
+    {
+      "from": "tomar",
+      "to": "inventario",
+      "label": "marcar listo descuenta",
+      "role": "branch",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tomar",
+      "to": "listo",
+      "label": "queda listo"
+    },
+    {
+      "from": "listo",
+      "to": "correo",
+      "label": "avisa",
+      "role": "async",
+      "variant": "dashed"
+    },
+    {
+      "from": "listo",
+      "to": "entrega",
+      "label": "el almacen entrega",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tomar",
+      "to": "rechazo",
+      "label": "rechazar",
+      "role": "error",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Camino principal",
+      "items": [
+        "Sin registro de usuarios",
+        "El carrito topa el saldo real",
+        "Consecutivo SOL-{ano}-{6}"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Reglas del inventario",
+      "items": [
+        "Crear no descuenta nada",
+        "El saldo baja al marcar listo",
+        "Rechazar devuelve el saldo"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Acceso e integracion",
+      "items": [
+        "Cada ruta exige su permiso",
+        "El ERP escribe stock, no saldo",
+        "SMTP no tumba el estado"
+      ]
+    }
+  ]
+}

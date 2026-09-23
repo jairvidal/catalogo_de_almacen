@@ -107,8 +107,12 @@ class FuncionalidadSeeder extends Seeder
 
         foreach ($roles as $rol) {
             foreach ($funcionalidades as $funcionalidad) {
-                $concede = $rol->es_admin_del_sistema
-                    || Funcionalidad::permisoHeredado($funcionalidad->col_clave, $rol->col_gestiona_catalogo);
+                // Una funcionalidad reservada no se siembra al rol que no esta
+                // en su lista blanca: User::puede() se la negaria igual y la
+                // fila en true solo serviria para confundir a quien lea la base.
+                $concede = Funcionalidad::rolAutorizado($funcionalidad->col_clave, $rol->col_clave)
+                    && ($rol->es_admin_del_sistema
+                        || Funcionalidad::permisoHeredado($funcionalidad->col_clave, $rol->col_gestiona_catalogo));
 
                 $filas[] = [(int) $rol->id, (int) $funcionalidad->id, (int) $concede, (int) $concede, (int) $concede, $ahora, $ahora];
             }

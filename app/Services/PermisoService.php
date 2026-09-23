@@ -29,6 +29,10 @@ class PermisoService
      * Funcionalidades activas agrupadas por seccion, con lo que el rol puede
      * hacer en cada una tal como se debe pintar.
      *
+     * - Funcionalidad reservada y rol fuera de la lista blanca: todo
+     *   desmarcado y "reservada" en true, para que la vista bloquee esas
+     *   casillas. Marcarlas no concederia nada (User::puede() las niega
+     *   primero), asi que dejarlas editables mentiria sobre su efecto.
      * - Rol admin del sistema: todo marcado (y la vista lo bloquea).
      * - Rol con matriz guardada: lo guardado; sin fila, desmarcado.
      * - Rol sin matriz guardada: el permiso heredado, que es lo que hoy puede
@@ -36,7 +40,7 @@ class PermisoService
      *
      * @return array{
      *     configurada: bool,
-     *     secciones: array<string, list<array{id: int, clave: string, nombre: string, icono: string, permisos: array<string, bool>}>>
+     *     secciones: array<string, list<array{id: int, clave: string, nombre: string, icono: string, reservada: bool, permisos: array<string, bool>}>>
      * }
      */
     public function matriz(Rol $rol): array
@@ -45,10 +49,12 @@ class PermisoService
         $secciones = [];
 
         foreach ($this->funcionalidadesActivas() as $funcionalidad) {
+            $vetada = ! Funcionalidad::rolAutorizado($funcionalidad->col_clave, $rol->col_clave);
             $permisos = [];
 
             foreach (array_keys(Funcionalidad::ACCIONES) as $accion) {
                 $permisos[$accion] = match (true) {
+                    $vetada => false,
                     $rol->es_admin_del_sistema => true,
                     $guardados === null => Funcionalidad::permisoHeredado($funcionalidad->col_clave, $rol->col_gestiona_catalogo),
                     default => $guardados[$funcionalidad->col_clave][$accion] ?? false,
@@ -62,6 +68,7 @@ class PermisoService
                 'clave' => $funcionalidad->col_clave,
                 'nombre' => $funcionalidad->col_nombre,
                 'icono' => $funcionalidad->col_icono,
+                'reservada' => $vetada,
                 'permisos' => $permisos,
             ];
         }
@@ -105,7 +112,13 @@ class PermisoService
                     // El admin del sistema se guarda completo, llegue lo que
                     // llegue: la vista bloquea sus casillas, pero un formulario
                     // manipulado no puede quitarle nada.
-                    $actual->es_admin_del_sistema
+                    $actual->es_admin_del_sistema,
+                    // Y una funcionalidad reservada se guarda en cero para el
+                    // rol que no esta en su lista blanca, llegue marcada o no:
+                    // la base no debe conservar una concesion que User::puede()
+                    // niega, porque el dia que alguien quite la lista blanca
+                    // reviviria sola.
+                    ! Funcionalidad::rolAutorizado($funcionalidad->col_clave, $actual->col_clave)
                 );
             }
 
@@ -154,11 +167,18 @@ class PermisoService
      * Editar o eliminar implican ver: no se edita lo que no se puede abrir.
      * La base lo sostiene con el CHECK ck_tbl_rol_funcionalidad_ver.
      *
+     * $vetada gana sobre $todo: si algun dia una funcionalidad reservada
+     * excluyera al admin del sistema, no debe colarse por la puerta del "todo".
+     *
      * @param  array<string, mixed>  $marca
      * @return array{0: int, 1: int, 2: int, 3: int, 4: int}
      */
-    private function normalizar(int $rolId, int $funcionalidadId, array $marca, bool $todo): array
+    private function normalizar(int $rolId, int $funcionalidadId, array $marca, bool $todo, bool $vetada = false): array
     {
+        if ($vetada) {
+            return [$rolId, $funcionalidadId, 0, 0, 0];
+        }
+
         $editar = $todo || filter_var($marca[Funcionalidad::ACCION_EDITAR] ?? false, FILTER_VALIDATE_BOOLEAN);
         $eliminar = $todo || filter_var($marca[Funcionalidad::ACCION_ELIMINAR] ?? false, FILTER_VALIDATE_BOOLEAN);
         $ver = $todo || $editar || $eliminar || filter_var($marca[Funcionalidad::ACCION_VER] ?? false, FILTER_VALIDATE_BOOLEAN);

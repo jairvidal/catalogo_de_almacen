@@ -111,6 +111,12 @@ class User extends Authenticatable
      * Blade "puede" y el Gate "permiso".
      *
      * Orden de decision, del mas fuerte al mas debil:
+     * 0. Funcionalidad reservada (hoy solo "permisos"): si la clave del rol
+     *    vigente no esta en Funcionalidad::ROLES_ADMINISTRADORES, es NO y no se
+     *    mira nada mas. Va primero a proposito: es una lista blanca, y una
+     *    lista blanca que se evalua despues de la matriz no es una lista
+     *    blanca. El rol del sistema admin esta en la lista, asi que sigue
+     *    pudiendo todo.
      * 1. Rol del sistema admin: siempre si (no se puede dejar el panel sin
      *    nadie capaz de devolver los permisos).
      * 2. Rol asignado y activo con matriz guardada: manda la matriz; una
@@ -123,6 +129,10 @@ class User extends Authenticatable
     public function puede(string $funcionalidad, string $accion): bool
     {
         Funcionalidad::validarAccion($accion);
+
+        if (! Funcionalidad::rolAutorizado($funcionalidad, $this->claveDeRolVigente())) {
+            return false;
+        }
 
         $rol = $this->rolAsignado;
 
@@ -141,6 +151,23 @@ class User extends Authenticatable
         }
 
         return $permisos[$funcionalidad][$accion] ?? false;
+    }
+
+    /**
+     * Clave del rol que de verdad manda en este usuario, con el mismo criterio
+     * que usa puede(): el rol asignado mientras este activo, y el texto
+     * historico users.rol cuando no lo hay. Se resuelve en un solo sitio para
+     * que la lista blanca y la matriz nunca juzguen roles distintos.
+     */
+    private function claveDeRolVigente(): ?string
+    {
+        $rol = $this->rolAsignado;
+
+        if ($rol && $rol->col_activo) {
+            return $rol->col_clave;
+        }
+
+        return $this->rol;
     }
 
     /**

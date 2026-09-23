@@ -127,11 +127,20 @@
                                                        name="permisos[{{ $funcionalidad['id'] }}][{{ $accion }}]"
                                                        data-accion-permiso="{{ $accion }}"
                                                        @checked($funcionalidad['permisos'][$accion])
-                                                       @disabled($bloqueada)>
+                                                       @disabled($bloqueada || $funcionalidad['reservada'])>
                                                 <label class="form-check-label" for="{{ $campo }}">{{ $etiqueta }}</label>
                                             </div>
                                         @endforeach
                                     </div>
+
+                                    {{-- Reservada: marcarla no concederia nada, asi que se bloquea y se
+                                         dice por que. La barrera real esta en User::puede(). --}}
+                                    @if ($funcionalidad['reservada'])
+                                        <p class="text-secondary small mb-0 mt-2" data-permiso-reservado="{{ $funcionalidad['clave'] }}">
+                                            <i class="bi bi-shield-lock me-1"></i>Reservada a los perfiles administradores;
+                                            marcarla en este perfil no le daria acceso.
+                                        </p>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach

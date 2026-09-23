@@ -1,9 +1,14 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "rules": {
     "one_feature_at_a_time": true,
-    "valid_status": ["pending", "in_progress", "done", "blocked"]
+    "valid_status": [
+      "pending",
+      "in_progress",
+      "done",
+      "blocked"
+    ]
   },
   "modules": [
     {
@@ -87,6 +92,23 @@
             "El aviso de error del boton Actualizar muestra el codigo HTTP cuando la respuesta no trae un mensaje legible"
           ],
           "status": "done"
+        },
+        {
+          "id": "ADM-06",
+          "name": "Solo los perfiles superadministrador y administrador pueden visualizar y modificar la pagina Funciones por perfil.",
+          "acceptance": [
+            "Ningun otro perfil ve la entrada Funciones por perfil en el menu lateral",
+            "Un perfil no autorizado recibe 403 al abrir /admin/permisos y al guardar la matriz (PUT admin/permisos/{rol})",
+            "La restriccion se cumple aunque la matriz tenga marcadas las casillas de la funcionalidad permisos, incluso si alguien las escribe a mano en la base",
+            "La regla es una lista blanca de claves de rol en una sola constante, evaluada antes que la matriz dentro de User::puede()",
+            "La restriccion aplica SOLO a la funcionalidad permisos: las demas siguen decidiendose por matriz igual que antes",
+            "El rol del sistema admin conserva todos sus permisos",
+            "PermisoService::guardar() guarda en cero la funcionalidad reservada para un rol no autorizado",
+            "En la pantalla, las casillas de la funcionalidad reservada salen bloqueadas y desmarcadas para un perfil no autorizado, con una nota que explica por que",
+            "Sin hex sueltos en las vistas"
+          ],
+          "status": "done",
+          "notas": "Mapeo aplicado: en tbl_rol solo existen admin (col_nombre Administrador, del sistema) y almacenista, asi que el perfil administrador es admin. Funcionalidad::ROLES_ADMINISTRADORES lista admin, superadministrador y administrador; las dos ultimas quedan previstas por si se crean desde /admin/roles. No se creo ni se renombro ningun rol. Consecuencia deliberada: permisos ya no se hereda por col_gestiona_catalogo a un rol fuera de la lista. No se hizo revision visual en el navegador."
         }
       ]
     },

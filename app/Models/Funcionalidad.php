@@ -66,6 +66,39 @@ class Funcionalidad extends Model
         self::PARAMETROS,
     ];
 
+    /**
+     * Claves de rol que pueden usar las funcionalidades reservadas.
+     *
+     * Hoy tbl_rol solo trae "admin" (col_nombre "Administrador", rol del
+     * sistema) y "almacenista": el perfil administrador de la instalacion es
+     * "admin". Las otras dos claves se dejan previstas para que, el dia que
+     * alguien cree un perfil llamado superadministrador o administrador, la
+     * regla lo reconozca sin tocar codigo. No se renombra ni se crea ningun rol.
+     *
+     * @var list<string>
+     */
+    public const ROLES_ADMINISTRADORES = [
+        User::ROL_ADMIN,
+        'superadministrador',
+        'administrador',
+    ];
+
+    /**
+     * Funcionalidades reservadas a una lista blanca de claves de rol.
+     *
+     * "permisos" esta aqui porque editar la matriz equivale a poder darse
+     * cualquier permiso del panel, incluido el de volver a editarla: concederlo
+     * a un perfil operativo seria una escalada de privilegios en un clic. La
+     * lista blanca se evalua ANTES que la matriz, de modo que marcar las
+     * casillas de esta funcionalidad a un perfil no autorizado no le concede
+     * nada.
+     *
+     * @var array<string, list<string>>
+     */
+    private const RESERVADAS = [
+        self::PERMISOS => self::ROLES_ADMINISTRADORES,
+    ];
+
     protected $fillable = [
         'col_clave',
         'col_nombre',
@@ -100,6 +133,36 @@ class Funcionalidad extends Model
         }
 
         return $gestionaCatalogo && in_array($clave, self::HEREDADAS_DE_GESTIONA_CATALOGO, true);
+    }
+
+    /**
+     * ¿La clave de rol $claveRol puede usar la funcionalidad $claveFuncionalidad?
+     *
+     * Es el UNICO sitio que resuelve la lista blanca de RESERVADAS. Lo consulta
+     * User::puede() antes que cualquier otra cosa, y tambien PermisoService y
+     * FuncionalidadSeeder para no guardar una marca que no concede nada.
+     *
+     * Una funcionalidad que no esta reservada la puede usar cualquier rol: la
+     * decision vuelve entonces a la matriz, como siempre.
+     */
+    public static function rolAutorizado(string $claveFuncionalidad, ?string $claveRol): bool
+    {
+        $autorizados = self::RESERVADAS[$claveFuncionalidad] ?? null;
+
+        if ($autorizados === null) {
+            return true;
+        }
+
+        return $claveRol !== null && in_array($claveRol, $autorizados, true);
+    }
+
+    /**
+     * ¿La funcionalidad esta reservada a la lista blanca de roles? Lo usa la
+     * pantalla para explicar por que unas casillas salen bloqueadas.
+     */
+    public static function esReservada(string $claveFuncionalidad): bool
+    {
+        return array_key_exists($claveFuncionalidad, self::RESERVADAS);
     }
 
     /**
