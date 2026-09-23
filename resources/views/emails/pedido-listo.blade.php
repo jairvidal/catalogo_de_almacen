@@ -52,7 +52,7 @@
                         </p>
                         <p style="margin:0 0 20px;font-size:15px;line-height:1.6;">
                             El almacen ya elaboro el pedido correspondiente a su solicitud
-                            <strong>{{ $solicitud->numero }}</strong>. Puede acercarse a reclamarlo
+                            No. <strong>{{ $solicitud->numero }}</strong>. Puede acercarse a reclamarlo
                             presentando su documento de identidad.
                         </p>
 

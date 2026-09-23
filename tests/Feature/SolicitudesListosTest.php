@@ -38,6 +38,10 @@ class SolicitudesListosTest extends TestCase
     private function solicitud(string $estado): Solicitud
     {
         return Solicitud::create([
+            // El consecutivo real son 6 digitos (000001), pero aqui el numero
+            // solo tiene que ser unico. Se le deja una marca no numerica a
+            // proposito para que estas filas de prueba no entren en el MAX()
+            // con el que SolicitudService calcula el siguiente consecutivo.
             'numero' => 'SOL-TEST-'.substr(uniqid(), -8),
             'solicitante_nombre' => 'Solicitante de prueba',
             'solicitante_cedula' => '100'.random_int(100000, 999999),

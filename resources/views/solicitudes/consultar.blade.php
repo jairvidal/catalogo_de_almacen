@@ -20,7 +20,7 @@
                         <div class="col-md-5">
                             <label for="numero" class="form-label">Numero de solicitud</label>
                             <input type="text" class="form-control font-monospace" id="numero" name="numero"
-                                   value="{{ $numero }}" placeholder="SOL-{{ date('Y') }}-000001" required>
+                                   value="{{ $numero }}" placeholder="000001" required>
                         </div>
                         <div class="col-md-4">
                             <label for="cedula" class="form-label">Cedula</label>

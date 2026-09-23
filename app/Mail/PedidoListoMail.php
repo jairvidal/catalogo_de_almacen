@@ -21,7 +21,10 @@ class PedidoListoMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Su pedido {$this->solicitud->numero} esta listo para reclamar",
+            // El consecutivo ya no lleva el prefijo SOL-{anio}-, asi que en el
+            // asunto va precedido de "No." para que seis digitos sueltos no se
+            // lean como una cifra cualquiera.
+            subject: "Su pedido No. {$this->solicitud->numero} esta listo para reclamar",
         );
     }
 

@@ -21,7 +21,8 @@ class NuevaSolicitudMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Nueva solicitud de repuestos {$this->solicitud->numero}",
+            // Ver PedidoListoMail: el numero perdio el prefijo SOL-{anio}-.
+            subject: "Nueva solicitud de repuestos No. {$this->solicitud->numero}",
         );
     }
 

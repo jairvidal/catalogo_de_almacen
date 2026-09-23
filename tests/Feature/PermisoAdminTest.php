@@ -347,6 +347,8 @@ class PermisoAdminTest extends TestCase
     public function test_el_detalle_de_una_solicitud_respeta_editar_y_eliminar(): void
     {
         $solicitud = Solicitud::create([
+            // Numero de prueba con marca no numerica: el consecutivo real son 6
+            // digitos y estas filas no deben entrar en el MAX() que lo calcula.
             'numero' => 'SOL-PRUEBA-'.substr(uniqid(), -8),
             'solicitante_nombre' => 'Solicitante de prueba',
             'solicitante_cedula' => '123456',

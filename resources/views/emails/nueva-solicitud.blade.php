@@ -29,7 +29,7 @@
                 <tr>
                     <td style="background-color:#2e2b28;padding:22px 26px;">
                         <h1 style="margin:0;font-size:19px;color:#ffffff;font-weight:600;">
-                            Nueva solicitud {{ $solicitud->numero }}
+                            Nueva solicitud No. {{ $solicitud->numero }}
                         </h1>
                     </td>
                 </tr>

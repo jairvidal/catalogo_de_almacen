@@ -63,8 +63,13 @@ class SolicitudController extends Controller
         $noEncontrada = false;
 
         if ($numero !== '' && $cedula !== '') {
-            $solicitud = Solicitud::with('items')
-                ->where('numero', $numero)
+            // Se busca por el numero normalizado para que siga funcionando el
+            // formato historico (SOL-2026-000004) de los correos ya enviados.
+            // Un texto que no sea un numero de solicitud no consulta la base.
+            $buscado = Solicitud::normalizarNumero($numero);
+
+            $solicitud = $buscado === null ? null : Solicitud::with('items')
+                ->where('numero', $buscado)
                 ->where('solicitante_cedula', $cedula)
                 ->first();
 

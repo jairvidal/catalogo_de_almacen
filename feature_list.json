@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -386,6 +386,30 @@
             "Los conteos por estado no se consultan en la pantalla que no los pinta",
             "La entrada del menu marca 'estas aqui' en la pantalla correcta",
             "No quedan partials ni clases de CSS sin uso"
+          ],
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Solicitudes",
+      "prefijo": "SOL",
+      "features": [
+        {
+          "id": "SOL-01",
+          "name": "El numero de la solicitud es solo el consecutivo de 6 digitos (000001), sin el prefijo SOL-{anio}-",
+          "acceptance": [
+            "solicitudes.numero guarda el consecutivo de 6 digitos: se cambia el dato guardado, no solo lo que se muestra",
+            "Una migracion le quita el prefijo SOL-{anio}- a las solicitudes que ya existen, para cualquier anio y cualquier cantidad de filas",
+            "La migracion es idempotente y aborta con un mensaje claro si dos anios colisionaran en el mismo consecutivo",
+            "El contador es global y no se reinicia por anio: el siguiente numero sale del maximo existente, no de 1",
+            "El maximo se calcula solo sobre los valores de 6 digitos, para que un numero historico o de prueba no se lo lleve",
+            "Pasado 999999 la generacion falla con un mensaje explicito en vez de repetir un numero",
+            "El indice unico sobre numero sigue siendo la garantia ante concurrencia y crearConReintento() sigue reintentando con 2601/2627",
+            "La consulta publica y el buscador del panel siguen aceptando el numero historico completo (SOL-2026-000004), normalizado en un solo sitio",
+            "/consultar sigue exigiendo numero mas cedula",
+            "Listado y detalle del panel, confirmacion, consulta publica y los dos correos muestran el numero nuevo"
           ],
           "status": "done"
         }

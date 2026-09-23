@@ -85,23 +85,47 @@ class SolicitudService
     }
 
     /**
-     * Consecutivo por anio: SOL-2026-000001.
+     * Consecutivo GLOBAL de 6 digitos: 000001, 000002...
+     *
+     * No se reinicia por anio. Antes el numero llevaba el anio adentro
+     * (SOL-2026-000001) y el contador arrancaba de nuevo cada enero; al quedar
+     * solo los seis digitos, reiniciarlo chocaria contra el indice unico de la
+     * columna.
+     *
+     * `numero` es texto, asi que el maximo se toma con un cuidado: con seis
+     * digitos rellenados con ceros a la izquierda el orden lexicografico
+     * coincide con el numerico (000009 < 000010), y por eso MAX() sirve. Para
+     * que eso se cumpla, el filtro deja fuera cualquier valor que no sean
+     * exactamente seis digitos (un numero historico que no haya migrado, o los
+     * numeros de prueba): si se colara, se llevaria el maximo y el consecutivo
+     * saldria mal.
      *
      * Se calcula dentro de la transaccion de creacion; el indice unico sobre
      * `numero` es la garantia final ante concurrencia y por eso store() reintenta.
      */
     private function siguienteNumero(): string
     {
-        $anio = now()->format('Y');
-        $prefijo = "SOL-{$anio}-";
+        // El patron [0-9] es la clase de caracteres de LIKE en SQL Server, que
+        // es el motor del proyecto; un LIKE sin comodines exige ademas la
+        // longitud exacta.
+        $soloDigitos = str_repeat('[0-9]', Solicitud::LONGITUD_NUMERO);
 
-        $ultimo = Solicitud::where('numero', 'like', $prefijo.'%')
-            ->orderByDesc('numero')
-            ->value('numero');
+        $ultimo = Solicitud::where('numero', 'like', $soloDigitos)->max('numero');
 
-        $consecutivo = $ultimo ? ((int) substr($ultimo, strlen($prefijo))) + 1 : 1;
+        $consecutivo = ((int) $ultimo) + 1;
 
-        return $prefijo.str_pad((string) $consecutivo, 6, '0', STR_PAD_LEFT);
+        // Tope del formato. Pasado 999999 el numero dejaria de tener seis
+        // digitos, se saldria del filtro de arriba y el contador volveria a
+        // 000001 chocando para siempre contra el indice unico. Falla aqui, con
+        // un mensaje que dice que hay que ampliar LONGITUD_NUMERO.
+        if ($consecutivo > (10 ** Solicitud::LONGITUD_NUMERO) - 1) {
+            throw new \RuntimeException(
+                'El consecutivo de solicitudes agoto los '.Solicitud::LONGITUD_NUMERO.
+                ' digitos. Amplie Solicitud::LONGITUD_NUMERO y la columna solicitudes.numero.'
+            );
+        }
+
+        return str_pad((string) $consecutivo, Solicitud::LONGITUD_NUMERO, '0', STR_PAD_LEFT);
     }
 
     /**
