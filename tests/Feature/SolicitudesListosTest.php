@@ -83,13 +83,17 @@ class SolicitudesListosTest extends TestCase
         $respuesta->assertDontSee($pendiente->numero);
     }
 
-    public function test_la_busqueda_de_la_bandeja_de_listos_no_se_lleva_las_de_otros_estados(): void
+    public function test_los_filtros_de_la_bandeja_de_listos_no_se_llevan_las_de_otros_estados(): void
     {
         $lista = $this->solicitud(Solicitud::ESTADO_LISTO);
         $pendiente = $this->solicitud(Solicitud::ESTADO_PENDIENTE);
 
         $respuesta = $this->actingAs($this->administrador())
-            ->get(route('admin.solicitudes.listos', ['q' => 'Solicitante de prueba']));
+            ->get(route('admin.solicitudes.listos', [
+                'solicitante' => 'Solicitante de prueba',
+                // Ni un estado por URL puede saltarse el que fija la ruta.
+                'estado' => Solicitud::ESTADO_PENDIENTE,
+            ]));
 
         $respuesta->assertOk();
         $respuesta->assertSee($lista->numero);

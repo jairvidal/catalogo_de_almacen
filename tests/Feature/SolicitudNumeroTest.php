@@ -183,14 +183,15 @@ class SolicitudNumeroTest extends TestCase
     }
 
     /**
-     * El buscador del panel tambien acepta el numero viejo pegado tal cual.
+     * El filtro NUMERO del panel tambien acepta el numero viejo pegado tal
+     * cual (antes lo sostenia el buscador general, que se retiro).
      */
-    public function test_el_buscador_del_panel_encuentra_por_el_numero_viejo(): void
+    public function test_el_filtro_de_numero_del_panel_encuentra_por_el_numero_viejo(): void
     {
         $numero = $this->formatear($this->maximoVigente() + 52);
         $solicitud = $this->solicitudCon($numero);
 
-        $encontradas = Solicitud::buscar('SOL-2026-'.$numero)->pluck('id')->all();
+        $encontradas = Solicitud::filtrarPorColumnas(['numero' => 'SOL-2026-'.$numero])->pluck('id')->all();
 
         $this->assertSame([$solicitud->id], $encontradas);
     }

@@ -261,6 +261,67 @@
         campo.addEventListener('change', () => campo.form?.submit());
     });
 
+    /* --- Filtro automatico al escribir (input[data-autofiltrar]) --------- */
+
+    /* Envia el formulario cuando el usuario deja de escribir por un momento,
+       sin tener que apretar el boton de filtrar. El envio recarga la pagina,
+       asi que antes de enviar se guarda que cuadro tenia el foco y donde iba
+       el cursor, y al cargar se devuelve ahi: sin eso habria que volver a
+       hacer clic en el cuadro despues de cada letra. sessionStorage puede
+       fallar (ventana privada, datos bloqueados): la pagina funciona igual. */
+    const ESPERA_AUTOFILTRO_MS = 600;
+    const CLAVE_FOCO_FILTRO = 'autofiltro.foco';
+
+    try {
+        const guardado = JSON.parse(sessionStorage.getItem(CLAVE_FOCO_FILTRO) ?? 'null');
+        sessionStorage.removeItem(CLAVE_FOCO_FILTRO);
+        const cuadro = guardado ? document.getElementById(guardado.id) : null;
+
+        if (cuadro?.matches('[data-autofiltrar]')) {
+            cuadro.focus();
+            const posicion = Math.min(guardado.cursor ?? cuadro.value.length, cuadro.value.length);
+            try { cuadro.setSelectionRange(posicion, posicion); } catch { /* tipo sin cursor */ }
+        }
+    } catch { /* sin almacenamiento: solo se pierde el foco */ }
+
+    document.querySelectorAll('input[data-autofiltrar]').forEach((cuadro) => {
+        let temporizador = null;
+        let ultimoEnviado = cuadro.value;
+
+        const enviar = (forzar = false) => {
+            clearTimeout(temporizador);
+
+            // Sin cambios reales (p. ej. un espacio al final) no se recarga.
+            if (!cuadro.form || (!forzar && cuadro.value.trim() === ultimoEnviado.trim())) {
+                return;
+            }
+
+            ultimoEnviado = cuadro.value;
+
+            try {
+                sessionStorage.setItem(CLAVE_FOCO_FILTRO, JSON.stringify({
+                    id: cuadro.id,
+                    cursor: cuadro.selectionStart,
+                }));
+            } catch { /* sin almacenamiento */ }
+
+            cuadro.form.requestSubmit ? cuadro.form.requestSubmit() : cuadro.form.submit();
+        };
+
+        cuadro.addEventListener('input', () => {
+            clearTimeout(temporizador);
+            temporizador = setTimeout(enviar, ESPERA_AUTOFILTRO_MS);
+        });
+
+        // Enter envia ya, sin esperar el temporizador ni duplicar el envio.
+        cuadro.addEventListener('keydown', (evento) => {
+            if (evento.key === 'Enter') {
+                evento.preventDefault();
+                enviar(true);
+            }
+        });
+    });
+
     /* --- Funciones por perfil (form[data-matriz-permisos]) --------------- */
 
     /* Editar o eliminar implican ver: al marcarlos se marca ver, y al quitar

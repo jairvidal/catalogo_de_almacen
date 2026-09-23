@@ -8,7 +8,7 @@
     <link rel="icon" href="{{ asset('assets/img/sin-foto.svg') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/bootstrap-icons.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/app.css') }}?v={{ @filemtime(public_path('assets/css/app.css')) }}">
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100 py-4"
       style="background:var(--ca-superficie-oscura)">

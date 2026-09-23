@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Repuesto;
 use App\Models\Solicitud;
 use App\Services\SolicitudService;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,8 +18,11 @@ class SolicitudAdminController extends Controller
      */
     public function index(Request $request): View
     {
+        // El estado llega por la URL (tarjetas de conteo y select de la fila de
+        // filtros comparten el mismo parametro). Solo se acepta una clave de
+        // Solicitud::ESTADOS; cualquier otra cosa equivale a "todas".
         $estado = $request->string('estado')->toString();
-        $termino = $request->string('q')->toString();
+        $estado = array_key_exists($estado, Solicitud::ESTADOS) ? $estado : '';
 
         $conteos = Solicitud::query()
             ->selectRaw('estado, COUNT(*) as total')
@@ -28,14 +30,13 @@ class SolicitudAdminController extends Controller
             ->pluck('total', 'estado');
 
         return view('admin.solicitudes.index', [
-            'solicitudes' => $this->bandeja($estado !== '' ? $estado : null, $termino),
+            ...$this->bandeja($request, $estado !== '' ? $estado : null, true),
             'conteos' => $conteos,
-            'estadoActivo' => $estado,
-            'termino' => $termino,
             'totalGeneral' => $conteos->sum(),
             'mostrarMetricas' => true,
+            'estadoFijo' => null,
             'rutaListado' => 'admin.solicitudes.index',
-            'parametrosBase' => ['estado' => $estado],
+            'parametrosBase' => [],
         ]);
     }
 
@@ -44,40 +45,71 @@ class SolicitudAdminController extends Controller
      *
      * Reusa la vista del listado, pero aqui el estado lo fija la RUTA y no la
      * URL: por eso no se pintan las tarjetas de filtro por estado ni se
-     * consultan sus conteos. El listado general sigue mostrandolas.
+     * consultan sus conteos, y un `estado` en la URL se ignora.
      */
     public function listos(Request $request): View
     {
-        $termino = $request->string('q')->toString();
-
         return view('admin.solicitudes.index', [
-            'solicitudes' => $this->bandeja(Solicitud::ESTADO_LISTO, $termino),
-            'termino' => $termino,
+            ...$this->bandeja($request, Solicitud::ESTADO_LISTO, false),
             'mostrarMetricas' => false,
+            'estadoFijo' => Solicitud::ESTADO_LISTO,
             'rutaListado' => 'admin.solicitudes.listos',
             'parametrosBase' => [],
         ]);
     }
 
     /**
-     * Consulta comun de las dos bandejas: mismo orden, mismo buscador y misma
-     * paginacion. Un solo sitio para que no se separen.
+     * Consulta comun de las dos bandejas: mismos filtros por columna, mismo
+     * orden y misma paginacion. Un solo sitio para que no se separen.
+     *
+     * Devuelve tambien lo que la vista necesita para repintar los filtros y
+     * armar los enlaces de orden, ya depurado: la vista no vuelve a leer el
+     * request.
+     *
+     * @param  bool  $estadoPorUrl  si el estado forma parte de la consulta que
+     *                              conservan los enlaces (listado general) o lo
+     *                              fija la ruta (Listos)
+     * @return array<string, mixed>
      */
-    private function bandeja(?string $estado, string $termino): LengthAwarePaginator
+    private function bandeja(Request $request, ?string $estado, bool $estadoPorUrl): array
     {
-        return Solicitud::query()
+        $filtros = [];
+
+        foreach (['numero', 'solicitante', 'items', 'atendida'] as $columna) {
+            $filtros[$columna] = trim($request->string($columna)->toString());
+        }
+
+        // Lista blanca: un `orden` desconocido cae al orden por defecto.
+        $orden = $request->string('orden')->toString();
+        $orden = in_array($orden, Solicitud::COLUMNAS_BANDEJA, true) ? $orden : null;
+        $direccion = $request->string('direccion')->toString() === 'desc' ? 'desc' : 'asc';
+
+        // Lo que conservan la paginacion, los enlaces de orden y las tarjetas:
+        // solo parametros ya depurados, nunca el query string crudo.
+        $consulta = array_filter([
+            ...$filtros,
+            'estado' => $estadoPorUrl ? (string) $estado : '',
+            'orden' => (string) $orden,
+            'direccion' => $orden !== null ? $direccion : '',
+        ], fn ($valor) => $valor !== '');
+
+        $solicitudes = Solicitud::query()
             ->with('atendidaPor')
             ->withCount('items')
             ->estado($estado)
-            ->buscar($termino)
-            ->orderByRaw("CASE estado
-                WHEN 'pendiente' THEN 1
-                WHEN 'en_proceso' THEN 2
-                WHEN 'listo' THEN 3
-                ELSE 4 END")
-            ->orderByDesc('created_at')
+            ->filtrarPorColumnas($filtros)
+            ->ordenarBandeja($orden, $direccion)
             ->paginate(15)
-            ->withQueryString();
+            ->appends($consulta);
+
+        return [
+            'solicitudes' => $solicitudes,
+            'filtros' => $filtros,
+            'estadoActivo' => (string) $estado,
+            'orden' => $orden,
+            'direccion' => $direccion,
+            'consulta' => $consulta,
+        ];
     }
 
     /**

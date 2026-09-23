@@ -50,6 +50,15 @@ class Solicitud extends Model
         self::ESTADO_RECHAZADA => ['label' => 'Rechazada', 'color' => 'estado-rechazada', 'icono' => 'x-circle'],
     ];
 
+    /**
+     * Columnas de las bandejas del panel que se pueden ordenar y filtrar: la
+     * LISTA BLANCA de los parametros `orden` y los filtros por columna.
+     * RECIBIDA y ACCION quedan fuera a proposito.
+     *
+     * @var list<string>
+     */
+    public const COLUMNAS_BANDEJA = ['numero', 'solicitante', 'items', 'estado', 'atendida'];
+
     protected $table = 'solicitudes';
 
     protected $fillable = [
@@ -127,35 +136,117 @@ class Solicitud extends Model
     }
 
     /**
-     * Busca por numero de solicitud, nombre, cedula o correo del solicitante.
+     * Filtros por columna de las bandejas del panel (la fila de cuadros de
+     * texto bajo los encabezados). Cada clave es un filtro independiente y
+     * todos se combinan con AND.
+     *
+     * El estado NO esta aqui a proposito: lo aplica scopeEstado(), porque en
+     * "Listos para reclamar" lo fija la ruta y ningun filtro puede saltarselo.
+     *
+     * @param  array{numero?: string, solicitante?: string, items?: string, atendida?: string}  $filtros
      */
-    public function scopeBuscar(Builder $query, ?string $termino): Builder
+    public function scopeFiltrarPorColumnas(Builder $query, array $filtros): Builder
     {
-        $termino = trim((string) $termino);
+        $numero = trim((string) ($filtros['numero'] ?? ''));
 
-        if ($termino === '') {
-            return $query;
+        if ($numero !== '') {
+            // Numero reconocible (000004, 4, SOL-2026-000004) -> igualdad
+            // exacta contra el formato guardado; cualquier otro texto cae a la
+            // coincidencia parcial.
+            $normalizado = self::normalizarNumero($numero);
+
+            $normalizado !== null
+                ? $query->where('numero', $normalizado)
+                : $query->where('numero', 'like', self::patronLike($numero));
         }
 
-        $like = '%'.str_replace(['%', '_'], ['[%]', '[_]'], $termino).'%';
+        $solicitante = trim((string) ($filtros['solicitante'] ?? ''));
 
-        // Quien pegue en el buscador un numero del formato historico
-        // (SOL-2026-000004) no encontraria nada con el LIKE: en la columna hoy
-        // solo estan los 6 digitos. Se agrega una igualdad exacta contra el
-        // numero normalizado, no un LIKE, para no ensuciar el resultado cuando
-        // el termino es en realidad una cedula corta.
-        $numero = self::normalizarNumero($termino);
+        if ($solicitante !== '') {
+            $like = self::patronLike($solicitante);
 
-        return $query->where(function (Builder $q) use ($like, $numero) {
-            $q->where('numero', 'like', $like)
-                ->orWhere('solicitante_nombre', 'like', $like)
-                ->orWhere('solicitante_cedula', 'like', $like)
-                ->orWhere('solicitante_email', 'like', $like);
+            $query->where(function (Builder $q) use ($like) {
+                $q->where('solicitante_nombre', 'like', $like)
+                    ->orWhere('solicitante_cedula', 'like', $like)
+                    ->orWhere('solicitante_area', 'like', $like);
+            });
+        }
 
-            if ($numero !== null) {
-                $q->orWhere('numero', $numero);
-            }
-        });
+        // Cantidad de items: solo un entero. Un texto no numerico se ignora en
+        // vez de convertirse en 0, que filtraria por "sin items".
+        $items = trim((string) ($filtros['items'] ?? ''));
+
+        if ($items !== '' && ctype_digit($items)) {
+            $query->has('items', '=', (int) $items);
+        }
+
+        $atendida = trim((string) ($filtros['atendida'] ?? ''));
+
+        if ($atendida !== '') {
+            $like = self::patronLike($atendida);
+
+            $query->whereHas('atendidaPor', fn (Builder $q) => $q->where('name', 'like', $like));
+        }
+
+        return $query;
+    }
+
+    /**
+     * Orden de las bandejas del panel. $orden tiene que ser una clave de
+     * COLUMNAS_BANDEJA: nada del request llega al ORDER BY sin pasar por ese
+     * match. Sin orden (o con uno desconocido) queda el de siempre: por avance
+     * del flujo y luego lo mas reciente primero.
+     */
+    public function scopeOrdenarBandeja(Builder $query, ?string $orden, string $direccion): Builder
+    {
+        $direccion = $direccion === 'desc' ? 'desc' : 'asc';
+
+        match ($orden) {
+            'numero' => $query->orderBy('numero', $direccion),
+            'solicitante' => $query->orderBy('solicitante_nombre', $direccion),
+            'items' => $query->orderBy(
+                SolicitudItem::query()
+                    ->selectRaw('count(*)')
+                    ->whereColumn('solicitud_items.solicitud_id', 'solicitudes.id'),
+                $direccion
+            ),
+            'estado' => $query->orderByRaw(self::sqlOrdenEstado().' '.$direccion, array_keys(self::ESTADOS)),
+            'atendida' => $query->orderBy(
+                User::query()->select('name')->whereColumn('users.id', 'solicitudes.atendida_por'),
+                $direccion
+            ),
+            default => $query->orderByRaw("CASE estado
+                WHEN 'pendiente' THEN 1
+                WHEN 'en_proceso' THEN 2
+                WHEN 'listo' THEN 3
+                ELSE 4 END"),
+        };
+
+        // Desempate estable: sin el, dos filas con el mismo valor podrian
+        // saltar de pagina entre una carga y la siguiente.
+        return $query->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    /**
+     * CASE que ordena por el avance del flujo (el orden de ESTADOS), no por el
+     * texto de la clave: alfabeticamente "entregada" quedaria antes que
+     * "pendiente". Las claves viajan como parametros enlazados.
+     */
+    private static function sqlOrdenEstado(): string
+    {
+        $casos = collect(array_keys(self::ESTADOS))
+            ->map(fn ($clave, $posicion) => 'WHEN ? THEN '.($posicion + 1))
+            ->implode(' ');
+
+        return "CASE estado {$casos} ELSE ".(count(self::ESTADOS) + 1).' END';
+    }
+
+    /**
+     * Patron de coincidencia parcial con el escape de LIKE de SQL Server.
+     */
+    private static function patronLike(string $termino): string
+    {
+        return '%'.str_replace(['%', '_'], ['[%]', '[_]'], $termino).'%';
     }
 
     public function getEstadoLabelAttribute(): string

@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -412,6 +412,26 @@
             "Listado y detalle del panel, confirmacion, consulta publica y los dos correos muestran el numero nuevo"
           ],
           "status": "done"
+        },
+        {
+          "id": "SOL-02",
+          "name": "En la pantalla Solicitudes del panel, reemplazar el buscador general por filtros y flechas de orden por columna (Numero, Solicitante, Items, Estado, Atendida por).",
+          "acceptance": [
+            "El buscador general (parametro q) desaparece de las dos bandejas",
+            "Bajo los encabezados hay una fila con un filtro por columna para Numero, Solicitante, Items, Estado y Atendida por; Recibida y Accion no llevan filtro ni orden",
+            "Numero usa Solicitud::normalizarNumero() (000004, 4, SOL-2026-000004) y cae a coincidencia parcial si no es un numero",
+            "Solicitante busca en nombre, cedula y area; Atendida por en el nombre del usuario; los LIKE usan el escape de corchetes de SQL Server",
+            "Items filtra por la cantidad exacta y un valor no numerico se ignora",
+            "Estado es un select que comparte el parametro estado con las tarjetas de conteo; un estado desconocido equivale a todos",
+            "En Listos para reclamar el estado lo fija la ruta: el select sale deshabilitado y un estado por URL se ignora",
+            "Cada titulo ordena asc/desc en el servidor con los parametros orden y direccion sobre una lista blanca; un orden invalido cae al orden por defecto sin error",
+            "Items ordena por conteo de items, Atendida por nombre del usuario, Estado por avance del flujo",
+            "Los enlaces de orden conservan los filtros, los filtros conservan el orden y la paginacion conserva ambos",
+            "La flecha activa se resalta con el color de marca; aria-sort en los encabezados y labels ocultos en los cuadros",
+            "En movil la tabla se desplaza dentro de table-responsive sin scroll horizontal de pagina"
+          ],
+          "status": "done",
+          "notas": "Solicitud::scopeBuscar() se elimino: su unico consumidor era el buscador retirado y su caso especial (numero historico) quedo cubierto por el filtro Numero. No se hizo revision visual en el navegador."
         }
       ]
     }

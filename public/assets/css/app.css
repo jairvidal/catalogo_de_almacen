@@ -786,6 +786,49 @@ a:focus-visible {
 }
 
 /* --------------------------------------------------------------------------
+   Orden y filtros por columna (bandejas de solicitudes)
+
+   El titulo de la columna es el enlace de orden; las dos flechas son solo el
+   indicador. La activa va en el rojo de marca (indicador pequeno, relleno),
+   las demas en texto tenue. Los cuadros de filtro llevan un ancho minimo para
+   que la tabla se desplace dentro de .table-responsive en movil en vez de
+   aplastarlos: la pagina no saca scroll horizontal.
+   -------------------------------------------------------------------------- */
+
+.orden-columna {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    color: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.orden-columna:hover,
+.orden-columna:focus-visible {
+    color: var(--ca-texto);
+}
+
+.flechas-orden {
+    display: inline-flex;
+    flex-direction: column;
+    font-size: .6rem;
+    line-height: .8;
+    color: var(--ca-texto-tenue);
+}
+
+.flechas-orden .activa { color: var(--ca-primario); }
+
+.fila-filtros > td {
+    padding-top: .4rem;
+    padding-bottom: .55rem;
+    border-bottom-color: var(--ca-borde);
+}
+
+.filtro-columna { min-width: 7rem; }
+.filtro-columna-corto { min-width: 4.5rem; }
+
+/* --------------------------------------------------------------------------
    Funciones por perfil (admin/permisos)
 
    La tarjeta con al menos un permiso marcado va en el fondo TENUE de la marca
