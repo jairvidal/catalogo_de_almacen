@@ -148,7 +148,7 @@ class SolicitudService
         if ($consecutivo > (10 ** Solicitud::LONGITUD_NUMERO) - 1) {
             throw new \RuntimeException(
                 'El consecutivo de solicitudes agoto los '.Solicitud::LONGITUD_NUMERO.
-                ' digitos. Amplie Solicitud::LONGITUD_NUMERO y la columna solicitudes.numero.'
+                ' digitos. Amplie Solicitud::LONGITUD_NUMERO y la columna tbl_solicitudes.numero.'
             );
         }
 

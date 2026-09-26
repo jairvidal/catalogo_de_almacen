@@ -295,7 +295,7 @@ class SolicitudesFiltrosOrdenTest extends TestCase
 
         $respuesta = $this->listado([
             'solicitante' => $this->marca,
-            'orden' => 'numero; drop table solicitudes',
+            'orden' => 'numero; drop table tbl_solicitudes',
             'direccion' => 'hacia un lado',
         ]);
 

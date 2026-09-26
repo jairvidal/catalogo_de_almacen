@@ -70,7 +70,7 @@ class Solicitud extends Model
      */
     public const COLUMNAS_BANDEJA = ['numero', 'solicitante', 'items', 'estado', 'atendida'];
 
-    protected $table = 'solicitudes';
+    protected $table = 'tbl_solicitudes';
 
     protected $fillable = [
         'numero',
@@ -401,12 +401,12 @@ class Solicitud extends Model
             'items' => $query->orderBy(
                 SolicitudItem::query()
                     ->selectRaw('count(*)')
-                    ->whereColumn('solicitud_items.solicitud_id', 'solicitudes.id'),
+                    ->whereColumn('solicitud_items.solicitud_id', $query->qualifyColumn('id')),
                 $direccion
             ),
             'estado' => $query->orderByRaw(self::sqlOrdenEstado().' '.$direccion, array_keys(self::ESTADOS)),
             'atendida' => $query->orderBy(
-                User::query()->select('name')->whereColumn('users.id', 'solicitudes.atendida_por'),
+                User::query()->select('name')->whereColumn('users.id', $query->qualifyColumn('atendida_por')),
                 $direccion
             ),
             default => $query->orderByRaw("CASE estado

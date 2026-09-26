@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Mail;
  *
  * Los correos salen DESPUES de confirmar la transaccion y un fallo de SMTP
  * nunca tumba la decision (mismo criterio que notificarPedidoListo): se
- * registra en el log y en solicitudes.error_notificacion.
+ * registra en el log y en tbl_solicitudes.error_notificacion.
  */
 class AprobacionSolicitudService
 {

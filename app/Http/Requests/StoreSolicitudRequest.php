@@ -28,7 +28,7 @@ class StoreSolicitudRequest extends FormRequest
     {
         return [
             // Texto libre que digita la persona. NO reemplaza al nombre del ERP:
-            // se guarda aparte, en solicitudes.nombre_completo.
+            // se guarda aparte, en tbl_solicitudes.nombre_completo.
             'nombre_completo' => ['required', 'string', 'max:150'],
             'solicitante_erp_id' => [
                 'required',
