@@ -93,7 +93,7 @@
         <div class="alert alert-success d-flex flex-wrap align-items-center gap-2 no-imprimir py-2">
             <i class="bi bi-envelope-check"></i>
             <div class="flex-grow-1 small">
-                Aviso enviado a <strong>{{ $solicitud->solicitante_email }}</strong>
+                Aviso enviado a <strong>{{ $solicitud->correoDeAviso() ?? '(sin correo)' }}</strong>
                 el {{ $solicitud->notificado_at->format('d/m/Y h:i a') }}.
             </div>
             @if ($solicitud->estado === \App\Models\Solicitud::ESTADO_LISTO)
@@ -238,8 +238,12 @@
                             </div>
 
                             <p class="small text-secondary mt-2 mb-0">
-                                Al confirmar, el sistema descuenta las cantidades del inventario y envia el correo
-                                a <strong>{{ $solicitud->solicitante_email }}</strong>.
+                                Al confirmar, el sistema descuenta las cantidades del inventario
+                                @if ($solicitud->correoDeAviso())
+                                    y envia el correo a <strong>{{ $solicitud->correoDeAviso() }}</strong>.
+                                @else
+                                    pero <strong>no podra enviar el aviso</strong>: el solicitante no tiene correo registrado en el ERP.
+                                @endif
                             </p>
                         </div>
                     @endif
@@ -257,15 +261,32 @@
                 </div>
                 <div class="card-body">
                     <dl class="row small mb-0">
-                        <dt class="col-5 fw-normal text-secondary">Nombre</dt>
+                        @if ($solicitud->nombre_completo)
+                            <dt class="col-5 fw-normal text-secondary">Nombre completo</dt>
+                            <dd class="col-7">{{ $solicitud->nombre_completo }}</dd>
+                        @endif
+
+                        <dt class="col-5 fw-normal text-secondary">Solicitante</dt>
                         <dd class="col-7 fw-semibold">{{ $solicitud->solicitante_nombre }}</dd>
 
-                        <dt class="col-5 fw-normal text-secondary">Cedula</dt>
-                        <dd class="col-7">{{ $solicitud->solicitante_cedula }}</dd>
+                        @if ($solicitud->solicitanteErp)
+                            <dt class="col-5 fw-normal text-secondary">Codigo ERP</dt>
+                            <dd class="col-7 font-monospace">{{ $solicitud->solicitanteErp->col_codigo_erp }}</dd>
+                        @endif
 
+                        @if ($solicitud->solicitante_cedula)
+                            <dt class="col-5 fw-normal text-secondary">Cedula</dt>
+                            <dd class="col-7">{{ $solicitud->solicitante_cedula }}</dd>
+                        @endif
+
+                        {{-- Correo de aviso = el vigente del ERP (o el snapshot en las historicas). --}}
                         <dt class="col-5 fw-normal text-secondary">Correo</dt>
                         <dd class="col-7 text-break">
-                            <a href="mailto:{{ $solicitud->solicitante_email }}">{{ $solicitud->solicitante_email }}</a>
+                            @if ($solicitud->correoDeAviso())
+                                <a href="mailto:{{ $solicitud->correoDeAviso() }}">{{ $solicitud->correoDeAviso() }}</a>
+                            @else
+                                <span class="text-secondary">Sin correo registrado</span>
+                            @endif
                         </dd>
 
                         @if ($solicitud->solicitante_telefono)

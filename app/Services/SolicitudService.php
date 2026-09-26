@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Mail\NuevaSolicitudMail;
 use App\Mail\PedidoListoMail;
 use App\Models\Repuesto;
+use App\Models\SolicitanteErp;
 use App\Models\Solicitud;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -20,9 +21,10 @@ class SolicitudService
     /**
      * Crea la solicitud a partir del carrito de la sesion.
      *
-     * @param  array<string, mixed>  $datosSolicitante
+     * @param  array{solicitante_erp_id: int|string, nombre_completo?: ?string, observaciones?: ?string}  $datosSolicitante
      *
-     * @throws ValidationException si el carrito esta vacio o el stock ya no alcanza.
+     * @throws ValidationException si el carrito esta vacio, el stock ya no alcanza o el
+     *                             solicitante dejo de existir o de estar activo.
      */
     public function crearDesdeCarrito(array $datosSolicitante): Solicitud
     {
@@ -59,7 +61,29 @@ class SolicitudService
                 throw ValidationException::withMessages(['carrito' => $errores]);
             }
 
-            $solicitud = new Solicitud($datosSolicitante);
+            // Se relee al solicitante aqui y no se confia en la validacion del
+            // request: entre el formulario y este punto el ERP pudo inactivarlo.
+            $solicitante = SolicitanteErp::whereKey($datosSolicitante['solicitante_erp_id'])->first();
+
+            if (! $solicitante || ! $solicitante->col_activo) {
+                throw ValidationException::withMessages([
+                    'solicitante_erp_id' => 'El solicitante elegido no esta disponible. Busquelo de nuevo en la lista.',
+                ]);
+            }
+
+            $solicitud = new Solicitud([
+                'observaciones' => $datosSolicitante['observaciones'] ?? null,
+                // Lo que digito la persona; va aparte del snapshot del ERP.
+                'nombre_completo' => $datosSolicitante['nombre_completo'] ?? null,
+                // Snapshot: lo que traia el ERP al momento de pedir. El panel,
+                // sus filtros y los correos leen estas columnas.
+                'solicitante_nombre' => $solicitante->col_nombre,
+                'solicitante_cedula' => $solicitante->col_cedula,
+                'solicitante_email' => $solicitante->col_correo,
+                'solicitante_telefono' => $solicitante->col_telefono,
+                'solicitante_area' => $solicitante->col_area,
+            ]);
+            $solicitud->solicitante_erp_id = $solicitante->id;
             $solicitud->estado = Solicitud::ESTADO_PENDIENTE;
             $solicitud->numero = $this->siguienteNumero();
             $solicitud->save();
@@ -181,13 +205,21 @@ class SolicitudService
     }
 
     /**
-     * Envia (o reenvia) el aviso de "pedido listo" al solicitante.
+     * Envia (o reenvia) el aviso de "pedido listo" al solicitante, al correo
+     * vigente del ERP (Solicitud::correoDeAviso()).
      * Un fallo de SMTP no debe tumbar el cambio de estado: se registra y ya.
+     * Un solicitante sin correo es el mismo caso: queda en error_notificacion.
      */
     public function notificarPedidoListo(Solicitud $solicitud): bool
     {
         try {
-            Mail::to($solicitud->solicitante_email)->send(new PedidoListoMail($solicitud));
+            $correo = $solicitud->correoDeAviso();
+
+            if ($correo === null) {
+                throw new \RuntimeException('El solicitante no tiene correo registrado en el ERP.');
+            }
+
+            Mail::to($correo)->send(new PedidoListoMail($solicitud));
 
             $solicitud->forceFill([
                 'notificado_at' => now(),
@@ -237,7 +269,7 @@ class SolicitudService
      * Reintenta la creacion cuando dos personas confirman al mismo tiempo y
      * chocan contra el indice unico del consecutivo.
      *
-     * @param  array<string, mixed>  $datosSolicitante
+     * @param  array{solicitante_erp_id: int|string, nombre_completo?: ?string, observaciones?: ?string}  $datosSolicitante
      */
     public function crearConReintento(array $datosSolicitante, int $intentos = 3): Solicitud
     {

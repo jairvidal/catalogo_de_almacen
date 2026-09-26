@@ -430,6 +430,243 @@
         });
     });
 
+    /* --- Cuadro combinado con busqueda: Solicitante ---------------------- */
+
+    /* Patron combobox de ARIA 1.2: el foco se queda en el cuadro de texto y la
+       opcion activa se anuncia con aria-activedescendant. Lo que viaja en el
+       formulario es el id del campo oculto; el texto no lleva name. Mientras
+       haya texto sin una opcion elegida, setCustomValidity frena el envio en
+       el navegador (el servidor valida igual). La lista se arma con
+       textContent: los nombres vienen de la base, nunca como HTML. */
+    document.querySelectorAll('[data-combo-solicitante]').forEach((combo) => {
+        const texto = combo.querySelector('[data-combo-texto]');
+        const valor = combo.querySelector('[data-combo-valor]');
+        const lista = combo.querySelector('[data-combo-lista]');
+        const estado = combo.querySelector('[data-combo-estado]');
+        const url = combo.dataset.url;
+        const minimo = Number(combo.dataset.minimo || 2);
+        const mensajeSinElegir = 'Seleccione su nombre de la lista.';
+
+        if (!texto || !valor || !lista || !url) {
+            return;
+        }
+
+        let opciones = [];
+        let activa = -1;
+        let temporizador = null;
+        let peticion = null;
+        let nombreElegido = valor.value ? texto.value : '';
+
+        function anunciar(mensaje) {
+            if (estado) {
+                estado.textContent = mensaje;
+            }
+        }
+
+        function cerrar() {
+            lista.hidden = true;
+            texto.setAttribute('aria-expanded', 'false');
+            texto.removeAttribute('aria-activedescendant');
+            activa = -1;
+        }
+
+        function abrir() {
+            lista.hidden = false;
+            texto.setAttribute('aria-expanded', 'true');
+        }
+
+        function marcarActiva(indice) {
+            opciones.forEach((opcion, i) => {
+                const esActiva = i === indice;
+                opcion.classList.toggle('activa', esActiva);
+                opcion.setAttribute('aria-selected', esActiva ? 'true' : 'false');
+            });
+
+            activa = indice;
+
+            if (indice >= 0 && opciones[indice]) {
+                texto.setAttribute('aria-activedescendant', opciones[indice].id);
+                opciones[indice].scrollIntoView({ block: 'nearest' });
+            } else {
+                texto.removeAttribute('aria-activedescendant');
+            }
+        }
+
+        function elegir(opcion) {
+            nombreElegido = opcion.dataset.nombre;
+            texto.value = nombreElegido;
+            valor.value = opcion.dataset.id;
+            texto.setCustomValidity('');
+            texto.classList.remove('is-invalid');
+            cerrar();
+            anunciar(`Seleccionado: ${nombreElegido}`);
+        }
+
+        function mensajeEnLista(mensaje) {
+            lista.replaceChildren();
+            const nodo = document.createElement('li');
+            nodo.className = 'combo-vacio';
+            nodo.textContent = mensaje;
+            lista.appendChild(nodo);
+            opciones = [];
+            abrir();
+            anunciar(mensaje);
+        }
+
+        function pintar(resultados) {
+            lista.replaceChildren();
+            activa = -1;
+
+            if (resultados.length === 0) {
+                mensajeEnLista('No se encontraron solicitantes con ese nombre.');
+                return;
+            }
+
+            opciones = resultados.map((resultado, i) => {
+                const opcion = document.createElement('li');
+                opcion.id = `${lista.id}-op-${i}`;
+                opcion.setAttribute('role', 'option');
+                opcion.setAttribute('aria-selected', 'false');
+                opcion.dataset.id = String(resultado.id);
+                opcion.dataset.nombre = resultado.nombre;
+                opcion.textContent = resultado.nombre;
+
+                if (resultado.area) {
+                    const area = document.createElement('span');
+                    area.className = 'combo-area';
+                    area.textContent = resultado.area;
+                    opcion.appendChild(area);
+                }
+
+                lista.appendChild(opcion);
+                return opcion;
+            });
+
+            abrir();
+            anunciar(`${resultados.length} resultado(s). Use las flechas para elegir y Enter para seleccionar.`);
+        }
+
+        async function buscar(termino) {
+            peticion?.abort();
+            peticion = new AbortController();
+
+            try {
+                const respuesta = await fetch(`${url}?q=${encodeURIComponent(termino)}`, {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    signal: peticion.signal,
+                });
+
+                if (respuesta.status === 429) {
+                    mensajeEnLista('Demasiadas busquedas seguidas. Espere un momento e intente de nuevo.');
+                    return;
+                }
+
+                if (!respuesta.ok) {
+                    throw new Error(`HTTP ${respuesta.status}`);
+                }
+
+                const cuerpo = await respuesta.json();
+
+                // Una respuesta que llega cuando el texto ya cambio no se pinta.
+                if (texto.value.trim() === termino) {
+                    pintar(Array.isArray(cuerpo.datos) ? cuerpo.datos : []);
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    mensajeEnLista('No se pudo buscar. Revise su conexion e intente de nuevo.');
+                }
+            }
+        }
+
+        texto.addEventListener('input', () => {
+            const termino = texto.value.trim();
+
+            // Cambiar el texto invalida la eleccion anterior.
+            if (texto.value !== nombreElegido) {
+                valor.value = '';
+                nombreElegido = '';
+            }
+
+            texto.setCustomValidity(termino !== '' && !valor.value ? mensajeSinElegir : '');
+            clearTimeout(temporizador);
+
+            if (termino.length < minimo) {
+                peticion?.abort();
+                cerrar();
+                anunciar(termino === '' ? '' : `Escriba al menos ${minimo} letras para buscar.`);
+                return;
+            }
+
+            temporizador = setTimeout(() => buscar(termino), 300);
+        });
+
+        texto.addEventListener('keydown', (evento) => {
+            const abierta = !lista.hidden && opciones.length > 0;
+
+            switch (evento.key) {
+                case 'ArrowDown':
+                    if (opciones.length > 0) {
+                        evento.preventDefault();
+                        abrir();
+                        marcarActiva(activa < opciones.length - 1 ? activa + 1 : 0);
+                    }
+                    break;
+                case 'ArrowUp':
+                    if (opciones.length > 0) {
+                        evento.preventDefault();
+                        abrir();
+                        marcarActiva(activa > 0 ? activa - 1 : opciones.length - 1);
+                    }
+                    break;
+                case 'Enter':
+                    // Con la lista abierta, Enter elige; nunca envia el
+                    // formulario a medio elegir.
+                    if (abierta) {
+                        evento.preventDefault();
+
+                        if (activa >= 0) {
+                            elegir(opciones[activa]);
+                        } else if (opciones.length === 1) {
+                            elegir(opciones[0]);
+                        }
+                    }
+                    break;
+                case 'Escape':
+                    if (!lista.hidden) {
+                        evento.preventDefault();
+                        cerrar();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        // mousedown con preventDefault: el cuadro no pierde el foco antes del
+        // click (sin esto, el blur cerraria la lista y el click se perderia).
+        lista.addEventListener('mousedown', (evento) => evento.preventDefault());
+
+        lista.addEventListener('click', (evento) => {
+            const opcion = evento.target.closest('[role="option"]');
+
+            if (opcion) {
+                elegir(opcion);
+                texto.focus();
+            }
+        });
+
+        texto.addEventListener('blur', () => cerrar());
+
+        // Al enviar con texto pero sin elegir, el mensaje del navegador lo dice.
+        texto.form?.addEventListener('submit', (evento) => {
+            if (texto.value.trim() !== '' && !valor.value) {
+                evento.preventDefault();
+                texto.setCustomValidity(mensajeSinElegir);
+                texto.reportValidity();
+            }
+        });
+    });
+
     /* --- Mostrar toasts que vienen del servidor (sesion flash) ----------- */
 
     document.querySelectorAll('.toast[data-autoshow]').forEach((nodo) => {

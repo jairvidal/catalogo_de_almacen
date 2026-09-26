@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Repuesto;
+use App\Models\SolicitanteErp;
 use App\Models\Solicitud;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
@@ -32,6 +33,17 @@ class SolicitudNumeroTest extends TestCase
         Mail::fake();
     }
 
+    private function nuevoSolicitante(): SolicitanteErp
+    {
+        return SolicitanteErp::create([
+            'col_codigo_erp' => 'TEST-'.uniqid(),
+            'col_nombre' => 'Persona de prueba consecutivo',
+            'col_cedula' => '100'.random_int(100000, 999999),
+            'col_correo' => 'prueba.consecutivo@sidocsa.com',
+            'col_activo' => true,
+        ]);
+    }
+
     private function nuevoRepuesto(): Repuesto
     {
         return Repuesto::create([
@@ -56,9 +68,8 @@ class SolicitudNumeroTest extends TestCase
 
         $this->withSession(['carrito' => [$repuesto->id => 2]])
             ->post(route('solicitudes.store'), [
-                'solicitante_nombre' => 'Persona de prueba',
-                'solicitante_cedula' => '100'.random_int(100000, 999999),
-                'solicitante_email' => 'prueba.consecutivo@sidocsa.com',
+                'nombre_completo' => 'Persona de prueba',
+                'solicitante_erp_id' => $this->nuevoSolicitante()->id,
             ])
             ->assertRedirect();
 
@@ -148,15 +159,18 @@ class SolicitudNumeroTest extends TestCase
     /**
      * Los correos ya enviados y los numeros anotados traen el formato viejo:
      * la consulta publica tiene que seguir encontrando el pedido con ellos.
+     * La solicitud historica (sin FK) se casa por la cedula del solicitante.
      */
     public function test_la_consulta_publica_acepta_el_numero_con_el_prefijo_viejo(): void
     {
         $numero = $this->formatear($this->maximoVigente() + 50);
         $solicitud = $this->solicitudCon($numero);
+        $solicitante = $this->nuevoSolicitante();
+        $solicitante->update(['col_cedula' => $solicitud->solicitante_cedula]);
 
         $respuesta = $this->get(route('solicitudes.consultar', [
             'numero' => 'SOL-2026-'.$numero,
-            'cedula' => $solicitud->solicitante_cedula,
+            'solicitante' => $solicitante->id,
         ]));
 
         $respuesta->assertOk();
@@ -164,17 +178,17 @@ class SolicitudNumeroTest extends TestCase
     }
 
     /**
-     * Sin cedula correcta no se ve nada, tambien con el formato viejo: la
-     * proteccion de la consulta publica no cambio.
+     * Con otro solicitante no se ve nada, tambien con el formato viejo: la
+     * consulta publica sigue exigiendo que la solicitud sea de quien consulta.
      */
-    public function test_la_consulta_publica_sigue_exigiendo_la_cedula(): void
+    public function test_la_consulta_publica_sigue_exigiendo_al_solicitante(): void
     {
         $numero = $this->formatear($this->maximoVigente() + 51);
         $this->solicitudCon($numero);
 
         $respuesta = $this->get(route('solicitudes.consultar', [
             'numero' => 'SOL-2026-'.$numero,
-            'cedula' => '000000000',
+            'solicitante' => $this->nuevoSolicitante()->id,
         ]));
 
         $respuesta->assertOk();

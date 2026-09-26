@@ -191,10 +191,11 @@
                         <td>
                             <div class="fw-semibold">{{ $solicitud->solicitante_nombre }}</div>
                             <div class="small text-secondary">
-                                CC {{ $solicitud->solicitante_cedula }}
-                                @if ($solicitud->solicitante_area)
-                                    &middot; {{ $solicitud->solicitante_area }}
-                                @endif
+                                {{-- La cedula puede faltar: el ERP no siempre la trae. --}}
+                                {{ collect([
+                                    $solicitud->solicitante_cedula ? 'CC '.$solicitud->solicitante_cedula : null,
+                                    $solicitud->solicitante_area,
+                                ])->filter()->implode(' · ') }}
                             </div>
                         </td>
 

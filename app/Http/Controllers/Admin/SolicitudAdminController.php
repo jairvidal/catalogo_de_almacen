@@ -165,13 +165,21 @@ class SolicitudAdminController extends Controller
         $solicitud->refresh();
 
         if ($solicitud->notificado_at) {
-            return back()->with('exito', "Pedido elaborado. Se envio el aviso a {$solicitud->solicitante_email}.");
+            return back()->with('exito', "Pedido elaborado. Se envio el aviso a {$solicitud->correoDeAviso()}.");
         }
 
-        return back()->with(
-            'error',
-            'El pedido quedo elaborado, pero no se pudo enviar el correo. Revise la configuracion SMTP y use "Reenviar aviso".'
-        );
+        return back()->with('error', 'El pedido quedo elaborado, pero no se pudo enviar el correo. '.$this->causaSinAviso($solicitud).' y use "Reenviar aviso".');
+    }
+
+    /**
+     * Pista para el almacenista cuando el aviso no salio: sin correo en el ERP
+     * no hay nada que revisar en el SMTP.
+     */
+    private function causaSinAviso(Solicitud $solicitud): string
+    {
+        return $solicitud->correoDeAviso() === null
+            ? 'El solicitante no tiene correo registrado en el ERP: corrijalo en el ERP, vuelva a importar'
+            : 'Revise la configuracion SMTP';
     }
 
     /**
@@ -230,7 +238,7 @@ class SolicitudAdminController extends Controller
         }
 
         return $servicio->notificarPedidoListo($solicitud)
-            ? back()->with('exito', "Aviso reenviado a {$solicitud->solicitante_email}.")
-            : back()->with('error', 'No se pudo enviar el correo. Revise la configuracion SMTP.');
+            ? back()->with('exito', "Aviso reenviado a {$solicitud->correoDeAviso()}.")
+            : back()->with('error', 'No se pudo enviar el correo. '.$this->causaSinAviso($solicitud).'.');
     }
 }

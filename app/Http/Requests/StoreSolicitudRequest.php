@@ -3,7 +3,17 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
+/**
+ * Envio del formulario publico de solicitud.
+ *
+ * El solicitante ya no digita nombre, cedula, correo ni telefono: los elige
+ * de la lista del ERP (tbl_solicitante_erp) y aqui solo llega su id. Los
+ * datos se copian en SolicitudService, que ademas vuelve a leer al
+ * solicitante dentro de la transaccion (esta validacion es la cara amable; la
+ * garantia es esa relectura).
+ */
 class StoreSolicitudRequest extends FormRequest
 {
     public function authorize(): bool
@@ -17,11 +27,14 @@ class StoreSolicitudRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'solicitante_nombre' => ['required', 'string', 'min:5', 'max:150'],
-            'solicitante_cedula' => ['required', 'string', 'min:5', 'max:30', 'regex:/^[0-9.\-]+$/'],
-            'solicitante_email' => ['required', 'email:rfc', 'max:150'],
-            'solicitante_telefono' => ['nullable', 'string', 'max:30'],
-            'solicitante_area' => ['nullable', 'string', 'max:100'],
+            // Texto libre que digita la persona. NO reemplaza al nombre del ERP:
+            // se guarda aparte, en solicitudes.nombre_completo.
+            'nombre_completo' => ['required', 'string', 'max:150'],
+            'solicitante_erp_id' => [
+                'required',
+                'integer',
+                Rule::exists('tbl_solicitante_erp', 'id')->where('col_activo', 1),
+            ],
             'observaciones' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -32,11 +45,8 @@ class StoreSolicitudRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'solicitante_nombre' => 'nombre completo',
-            'solicitante_cedula' => 'cedula',
-            'solicitante_email' => 'correo electronico',
-            'solicitante_telefono' => 'telefono',
-            'solicitante_area' => 'area o dependencia',
+            'nombre_completo' => 'nombre completo',
+            'solicitante_erp_id' => 'solicitante',
         ];
     }
 
@@ -46,16 +56,17 @@ class StoreSolicitudRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'solicitante_cedula.regex' => 'La cedula solo puede contener numeros, puntos o guiones.',
+            'solicitante_erp_id.required' => 'Busque su nombre y seleccionelo de la lista.',
+            'solicitante_erp_id.integer' => 'Busque su nombre y seleccionelo de la lista.',
+            'solicitante_erp_id.exists' => 'El solicitante elegido no esta disponible. Busquelo de nuevo en la lista.',
         ];
     }
 
     protected function prepareForValidation(): void
     {
+        // Recorta y colapsa espacios: "  Juan   Perez " se guarda "Juan Perez".
         $this->merge([
-            'solicitante_nombre' => trim((string) $this->input('solicitante_nombre')),
-            'solicitante_cedula' => trim((string) $this->input('solicitante_cedula')),
-            'solicitante_email' => strtolower(trim((string) $this->input('solicitante_email'))),
+            'nombre_completo' => trim((string) preg_replace('/\s+/u', ' ', (string) $this->input('nombre_completo'))),
         ]);
     }
 }

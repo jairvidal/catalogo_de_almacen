@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -432,6 +432,24 @@
           ],
           "status": "done",
           "notas": "Solicitud::scopeBuscar() se elimino: su unico consumidor era el buscador retirado y su caso especial (numero historico) quedo cubierto por el filtro Numero. No se hizo revision visual en el navegador."
+        },
+        {
+          "id": "SOL-03",
+          "name": "Formulario publico de solicitud: el solicitante se elige de la tabla tbl_solicitante_erp (cuadro combinado con busqueda) en vez de digitar cedula, telefono y correo",
+          "acceptance": [
+            "Tabla tbl_solicitante_erp (col_codigo_erp unico, col_nombre, col_cedula, col_correo, col_area, col_telefono, col_activo) con indice por activo + nombre",
+            "El formulario elimina cedula, telefono, correo y area; orden: Nombre completo (texto libre obligatorio), Solicitante (cuadro combinado) y Observaciones (igual)",
+            "El nombre completo digitado se guarda en solicitudes.nombre_completo (nullable, max 150), aparte del snapshot solicitante_nombre del ERP; se muestra en el detalle del panel, el detalle publico y el correo nueva-solicitud, y el filtro SOLICITANTE tambien busca en el",
+            "La solicitud guarda solicitante_erp_id y copia en snapshot nombre, cedula, correo, area y telefono; no se borra ninguna columna de solicitudes",
+            "StoreSolicitudRequest valida que el solicitante exista y este activo; SolicitudService lo relee dentro de la transaccion",
+            "GET solicitantes/buscar publico con throttle, minimo 2 caracteres, maximo 20 resultados, solo activos, devuelve solo id, nombre y area; escape LIKE con corchetes",
+            "Combo accesible en JS plano (combobox, aria-expanded, aria-activedescendant, teclado, debounce) que conserva la eleccion al volver con errores",
+            "/consultar exige numero + solicitante; las nuevas se casan por FK y las historicas por la cedula del ERP contra solicitante_cedula",
+            "El aviso de pedido listo sale al correo vigente del ERP; sin correo queda en error_notificacion sin tumbar el cambio de estado",
+            "solicitantes:importar carga un CSV con MERGE idempotente en lotes, avisando las filas invalidas; lectura y escritura separadas para reusar el importador con la futura API"
+          ],
+          "status": "done",
+          "notas": "No se hizo revision visual en el navegador. La API del ERP para sincronizar solicitantes queda pendiente."
         }
       ]
     }

@@ -37,17 +37,26 @@
                 <tr>
                     <td style="padding:26px;">
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.8;margin-bottom:20px;">
+                            @if ($solicitud->nombre_completo)
+                                <tr>
+                                    <td width="120" style="color:#77726b;">Nombre completo</td>
+                                    <td>{{ $solicitud->nombre_completo }}</td>
+                                </tr>
+                            @endif
                             <tr>
                                 <td width="120" style="color:#77726b;">Solicitante</td>
                                 <td style="font-weight:600;">{{ $solicitud->solicitante_nombre }}</td>
                             </tr>
-                            <tr>
-                                <td style="color:#77726b;">Cedula</td>
-                                <td>{{ $solicitud->solicitante_cedula }}</td>
-                            </tr>
+                            {{-- El ERP puede no traer cedula o correo: la fila vacia no se pinta. --}}
+                            @if ($solicitud->solicitante_cedula)
+                                <tr>
+                                    <td style="color:#77726b;">Cedula</td>
+                                    <td>{{ $solicitud->solicitante_cedula }}</td>
+                                </tr>
+                            @endif
                             <tr>
                                 <td style="color:#77726b;">Correo</td>
-                                <td>{{ $solicitud->solicitante_email }}</td>
+                                <td>{{ $solicitud->solicitante_email ?: 'Sin correo registrado' }}</td>
                             </tr>
                             @if ($solicitud->solicitante_area)
                                 <tr>

@@ -19,18 +19,24 @@
             <div class="col-md-5">
                 <h2 class="h6 text-uppercase text-secondary mb-3" style="letter-spacing:.05em">Solicitante</h2>
                 <dl class="row small mb-0">
-                    <dt class="col-5 fw-normal text-secondary">Nombre</dt>
+                    @if ($solicitud->nombre_completo)
+                        <dt class="col-5 fw-normal text-secondary">Nombre completo</dt>
+                        <dd class="col-7">{{ $solicitud->nombre_completo }}</dd>
+                    @endif
+
+                    <dt class="col-5 fw-normal text-secondary">Solicitante</dt>
                     <dd class="col-7">{{ $solicitud->solicitante_nombre }}</dd>
 
-                    <dt class="col-5 fw-normal text-secondary">Cedula</dt>
-                    <dd class="col-7">{{ $solicitud->solicitante_cedula }}</dd>
+                    {{-- Cedula y correo ENMASCARADOS: vienen del ERP y cualquiera puede
+                         elegir un nombre de la lista publica. El telefono no se muestra. --}}
+                    @if ($solicitud->cedulaEnmascarada())
+                        <dt class="col-5 fw-normal text-secondary">Cedula</dt>
+                        <dd class="col-7">{{ $solicitud->cedulaEnmascarada() }}</dd>
+                    @endif
 
-                    <dt class="col-5 fw-normal text-secondary">Correo</dt>
-                    <dd class="col-7 text-break">{{ $solicitud->solicitante_email }}</dd>
-
-                    @if ($solicitud->solicitante_telefono)
-                        <dt class="col-5 fw-normal text-secondary">Telefono</dt>
-                        <dd class="col-7">{{ $solicitud->solicitante_telefono }}</dd>
+                    @if ($solicitud->correoAvisoEnmascarado())
+                        <dt class="col-5 fw-normal text-secondary">Correo</dt>
+                        <dd class="col-7 text-break">{{ $solicitud->correoAvisoEnmascarado() }}</dd>
                     @endif
 
                     @if ($solicitud->solicitante_area)

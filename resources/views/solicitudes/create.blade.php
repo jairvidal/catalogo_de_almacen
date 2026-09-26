@@ -7,7 +7,7 @@
     <div class="mb-4">
         <h1 class="h3 mb-1">Datos del solicitante</h1>
         <p class="text-secondary mb-0">
-            Complete sus datos para que el almacen pueda identificarlo y avisarle cuando el pedido este listo.
+            Seleccione su nombre para que el almacen pueda identificarlo y avisarle cuando el pedido este listo.
         </p>
     </div>
 
@@ -20,72 +20,26 @@
 
                     <div class="row g-3">
                         <div class="col-12">
-                            <label for="solicitante_nombre" class="form-label">
+                            <label for="nombre_completo" class="form-label">
                                 Nombre completo <span class="text-danger">*</span>
                             </label>
-                            <input type="text" class="form-control @error('solicitante_nombre') is-invalid @enderror"
-                                   id="solicitante_nombre" name="solicitante_nombre"
-                                   value="{{ old('solicitante_nombre') }}" maxlength="150" required autofocus
-                                   placeholder="Nombres y apellidos">
-                            @error('solicitante_nombre')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-sm-6">
-                            <label for="solicitante_cedula" class="form-label">
-                                Cedula <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" class="form-control @error('solicitante_cedula') is-invalid @enderror"
-                                   id="solicitante_cedula" name="solicitante_cedula"
-                                   value="{{ old('solicitante_cedula') }}" maxlength="30" required
-                                   inputmode="numeric" placeholder="Numero de documento">
-                            @error('solicitante_cedula')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @else
-                                <div class="form-text">La necesitara para consultar el estado de su solicitud.</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-sm-6">
-                            <label for="solicitante_telefono" class="form-label">Telefono o extension</label>
-                            <input type="text" class="form-control @error('solicitante_telefono') is-invalid @enderror"
-                                   id="solicitante_telefono" name="solicitante_telefono"
-                                   value="{{ old('solicitante_telefono') }}" maxlength="30">
-                            @error('solicitante_telefono')
+                            <input type="text" class="form-control @error('nombre_completo') is-invalid @enderror"
+                                   id="nombre_completo" name="nombre_completo"
+                                   value="{{ old('nombre_completo') }}" maxlength="150" required autofocus
+                                   autocomplete="name" placeholder="Nombres y apellidos">
+                            @error('nombre_completo')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <div class="col-12">
-                            <label for="solicitante_email" class="form-label">
-                                Correo electronico <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
-                                <input type="email" class="form-control @error('solicitante_email') is-invalid @enderror"
-                                       id="solicitante_email" name="solicitante_email"
-                                       value="{{ old('solicitante_email') }}" maxlength="150" required
-                                       placeholder="nombre@sidocsa.com">
-                                @error('solicitante_email')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="form-text">
-                                <i class="bi bi-info-circle me-1"></i>
-                                A este correo llegara el aviso cuando el pedido este listo para reclamar.
-                            </div>
-                        </div>
-
-                        <div class="col-12">
-                            <label for="solicitante_area" class="form-label">Area o dependencia</label>
-                            <input type="text" class="form-control @error('solicitante_area') is-invalid @enderror"
-                                   id="solicitante_area" name="solicitante_area"
-                                   value="{{ old('solicitante_area') }}" maxlength="100"
-                                   placeholder="Ej: Mantenimiento, Produccion, Planta 2">
-                            @error('solicitante_area')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            @include('solicitudes.partials.combo-solicitante', [
+                                'nombre' => 'solicitante_erp_id',
+                                'idCampo' => 'solicitante_buscar',
+                                'elegido' => $solicitanteElegido,
+                                'requerido' => true,
+                                'ayuda' => 'Busque su nombre y seleccionelo de la lista. Al correo que tiene registrado el almacen le llegara el aviso cuando el pedido este listo.',
+                            ])
                         </div>
 
                         <div class="col-12">

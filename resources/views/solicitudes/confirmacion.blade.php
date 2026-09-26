@@ -16,8 +16,13 @@
 
                     <h1 class="h3 mb-2">Su solicitud fue enviada</h1>
                     <p class="text-secondary mb-4">
-                        El almacen ya la recibio. Le llegara un correo a
-                        <strong>{{ $solicitud->solicitante_email }}</strong> cuando el pedido este listo para reclamar.
+                        El almacen ya la recibio.
+                        @if ($solicitud->correoAvisoEnmascarado())
+                            Le llegara un correo a <strong>{{ $solicitud->correoAvisoEnmascarado() }}</strong>
+                            cuando el pedido este listo para reclamar.
+                        @else
+                            No tiene un correo registrado en el almacen: consulte el estado con el numero de abajo.
+                        @endif
                     </p>
 
                     <div class="d-inline-block border rounded-3 px-4 py-3 bg-light mb-4">
@@ -28,11 +33,11 @@
                     </div>
 
                     <p class="small text-secondary mb-4">
-                        Guarde este numero. Con el y su cedula puede consultar el estado en cualquier momento.
+                        Guarde este numero. Con el y su nombre puede consultar el estado en cualquier momento.
                     </p>
 
                     <div class="d-flex flex-wrap justify-content-center gap-2 no-imprimir">
-                        <a href="{{ route('solicitudes.consultar', ['numero' => $solicitud->numero, 'cedula' => $solicitud->solicitante_cedula]) }}"
+                        <a href="{{ route('solicitudes.consultar', array_filter(['numero' => $solicitud->numero, 'solicitante' => $solicitud->solicitante_erp_id])) }}"
                            class="btn btn-marca">
                             <i class="bi bi-search me-1"></i>Consultar estado
                         </a>

@@ -64,6 +64,7 @@ class Solicitud extends Model
     protected $fillable = [
         'numero',
         'solicitante_nombre',
+        'nombre_completo',
         'solicitante_cedula',
         'solicitante_email',
         'solicitante_telefono',
@@ -97,6 +98,104 @@ class Solicitud extends Model
     public function atendidaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'atendida_por');
+    }
+
+    /**
+     * Persona del ERP que hizo la solicitud. Nula en las solicitudes
+     * anteriores a tbl_solicitante_erp. Los datos que se MUESTRAN salen del
+     * snapshot (solicitante_nombre, solicitante_cedula...), no de aqui: el
+     * historico no cambia si el ERP corrige a la persona.
+     *
+     * `solicitante_erp_id` no es fillable: lo asigna SolicitudService despues
+     * de releer al solicitante.
+     */
+    public function solicitanteErp(): BelongsTo
+    {
+        return $this->belongsTo(SolicitanteErp::class, 'solicitante_erp_id');
+    }
+
+    /**
+     * Solicitudes que pertenecen a este solicitante: la regla de /consultar,
+     * en un solo sitio.
+     *
+     *  - Las nuevas se casan por la FK solicitante_erp_id.
+     *  - Las HISTORICAS (sin FK, de cuando la persona digitaba sus datos) se
+     *    casan por la cedula del ERP contra el snapshot solicitante_cedula.
+     *    Un solicitante sin cedula en el ERP no hereda ninguna historica.
+     *    Una solicitud con FK nunca se casa por cedula: si la FK apunta a otra
+     *    persona, no es suya aunque la cedula coincida.
+     */
+    public function scopeDelSolicitante(Builder $query, SolicitanteErp $solicitante): Builder
+    {
+        $cedula = trim((string) $solicitante->col_cedula);
+
+        return $query->where(function (Builder $q) use ($solicitante, $cedula) {
+            $q->where('solicitante_erp_id', $solicitante->id);
+
+            if ($cedula !== '') {
+                $q->orWhere(fn (Builder $historica) => $historica
+                    ->whereNull('solicitante_erp_id')
+                    ->where('solicitante_cedula', $cedula));
+            }
+        });
+    }
+
+    /**
+     * Correo al que se manda el aviso de "pedido listo".
+     *
+     * Manda el correo VIGENTE del ERP, no el del snapshot: si el ERP lo
+     * corrigio despues de crear la solicitud, el aviso tiene que llegar al
+     * buzon correcto. Sin FK (historicas) o sin correo en el ERP se usa el
+     * snapshot. Null = no hay a donde avisar.
+     */
+    public function correoDeAviso(): ?string
+    {
+        $correo = trim((string) $this->solicitanteErp?->col_correo);
+
+        if ($correo === '') {
+            $correo = trim((string) $this->solicitante_email);
+        }
+
+        return $correo === '' ? null : $correo;
+    }
+
+    /**
+     * Correo de aviso para las vistas PUBLICAS (confirmacion y consulta):
+     *
+     * "ju***@sidocsa.com". Antes la persona veia lo que ella misma habia
+     * digitado; ahora el dato sale del ERP y cualquiera puede elegir un nombre
+     * de la lista, asi que mostrarlo completo seria filtrar el correo ajeno.
+     */
+    public function correoAvisoEnmascarado(): ?string
+    {
+        $correo = $this->correoDeAviso();
+
+        if ($correo === null) {
+            return null;
+        }
+
+        [$usuario, $dominio] = array_pad(explode('@', $correo, 2), 2, null);
+
+        return self::enmascarar($usuario, 2).($dominio !== null ? '@'.$dominio : '');
+    }
+
+    /**
+     * Cedula para las vistas PUBLICAS: solo los cuatro ultimos digitos. Mismo
+     * motivo que correoAvisoEnmascarado().
+     */
+    public function cedulaEnmascarada(): ?string
+    {
+        $cedula = trim((string) $this->solicitante_cedula);
+
+        return $cedula === '' ? null : str_repeat('*', max(0, mb_strlen($cedula) - 4)).mb_substr($cedula, -4);
+    }
+
+    /**
+     * Deja visibles los primeros $visibles caracteres y tapa el resto.
+     */
+    private static function enmascarar(string $texto, int $visibles): string
+    {
+        return mb_substr($texto, 0, $visibles).'***';
     }
 
     public function scopeEstado(Builder $query, ?string $estado): Builder
@@ -167,6 +266,7 @@ class Solicitud extends Model
 
             $query->where(function (Builder $q) use ($like) {
                 $q->where('solicitante_nombre', 'like', $like)
+                    ->orWhere('nombre_completo', 'like', $like)
                     ->orWhere('solicitante_cedula', 'like', $like)
                     ->orWhere('solicitante_area', 'like', $like);
             });

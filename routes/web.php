@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\RolAdminController;
 use App\Http\Controllers\Admin\SolicitudAdminController;
 use App\Http\Controllers\CarritoController;
 use App\Http\Controllers\CatalogoController;
+use App\Http\Controllers\SolicitanteController;
 use App\Http\Controllers\SolicitudController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,8 +17,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | Catalogo publico
 |--------------------------------------------------------------------------
-| Sin registro de usuarios: cualquiera busca, selecciona y al final digita
-| nombre, cedula y correo para generar la solicitud.
+| Sin registro de usuarios: cualquiera busca, selecciona y al final elige
+| su nombre en la lista de solicitantes del ERP para generar la solicitud.
 */
 
 Route::get('/', [CatalogoController::class, 'index'])->name('catalogo.index');
@@ -37,7 +38,17 @@ Route::controller(SolicitudController::class)->prefix('solicitud')->name('solici
     Route::get('/confirmacion/{numero}', 'confirmacion')->name('confirmacion');
 });
 
-Route::get('/consultar', [SolicitudController::class, 'consultar'])->name('solicitudes.consultar');
+// Consultar pide numero + solicitante. El solicitante sale de una lista
+// publica, asi que el throttle es lo que frena probar consecutivos a mano.
+Route::get('/consultar', [SolicitudController::class, 'consultar'])
+    ->middleware('throttle:30,1')
+    ->name('solicitudes.consultar');
+
+// Cuadro combinado "Solicitante" (formulario y consulta). Publico: solo
+// devuelve id, nombre y area.
+Route::get('/solicitantes/buscar', [SolicitanteController::class, 'buscar'])
+    ->middleware('throttle:60,1')
+    ->name('solicitantes.buscar');
 
 /*
 |--------------------------------------------------------------------------
