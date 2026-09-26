@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.12",
+  "version": "1.4.13",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -515,6 +515,20 @@
           ],
           "status": "done",
           "notas": "La columna se llama _id pero guarda un codigo: renombrarla (p. ej. solicitante_codigo_erp) queda como posible paso futuro. La columna nueva queda al final de la tabla (SQL Server no reordena). Un rollback deja creada la FK hacia id, que en la base local no existia antes. Cualquier reporte o integracion externa que cruce solicitante_erp_id con tbl_solicitante_erp.id deja de funcionar al migrar."
+        },
+        {
+          "id": "SOL-08",
+          "name": "tbl_solicitudes: columnas cod_referencia, cod_OC, dias_entrega, centro_operacion, cod_centro_de_costo, proyecto y enviado (solo esquema, todas NULL)",
+          "acceptance": [
+            "Migracion 2026_09_26_100500 con SQL nativo: cod_referencia varchar(50), cod_OC varchar(50), dias_entrega int, centro_operacion varchar(50), cod_centro_de_costo varchar(50), proyecto varchar(100), enviado varchar(1000), todas NULL",
+            "Los tipos son varchar real y no nvarchar (verificado en INFORMATION_SCHEMA.COLUMNS); cod_OC conserva la mayuscula",
+            "Si alguna columna ya existe, la migracion aborta antes de escribir y dice cuales; down() suelta las que encuentre",
+            "Solicitud: cast dias_entrega => integer; ninguna de las siete es fillable",
+            "No se agregan a formularios, vistas, validacion, servicios ni correos",
+            "Prueba SolicitudColumnasReferenciaTest: tipo, largo, nulabilidad, caja de cod_OC, cast y no fillable"
+          ],
+          "status": "done",
+          "notas": "Significado de negocio pendiente de definir, en especial enviado y la unidad de dias_entrega. Con select explicito, Eloquent devuelve el atributo con la caja escrita en la consulta (cod_oc != cod_OC): escribirla siempre cod_OC. varchar usa la pagina de codigos de Modern_Spanish_CI_AS (Windows-1252). Las columnas quedan al final de la tabla."
         }
       ]
     }

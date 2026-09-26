@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Entidad-relacion tbl_solicitudes (V 1.4.13)",
+    "output": "er-tbl-solicitudes.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "solicitante", "type": "database", "label": "tbl_solicitante_erp", "sublabel": "PK id / UQ col_codigo_erp", "pos": [40, 260], "size": [200, 64] },
+    { "id": "solicitudes", "type": "database", "label": "tbl_solicitudes", "sublabel": "PK id / UQ numero", "pos": [400, 260], "size": [200, 64], "tag": "+7 columnas NULL" },
+    { "id": "detalle", "type": "database", "label": "tbl_solicitud_detalle", "sublabel": "FK solicitud_id", "pos": [760, 260], "size": [200, 64] },
+    { "id": "usuarios", "type": "database", "label": "users", "sublabel": "PK id", "pos": [400, 80], "size": [200, 64] },
+    { "id": "repuestos", "type": "database", "label": "repuestos", "sublabel": "PK id", "pos": [760, 440], "size": [200, 64] }
+  ],
+  "connections": [
+    { "id": "solicitante-solicitudes", "from": "solicitante", "to": "solicitudes", "label": "1 : N por codigo", "variant": "emphasis" },
+    { "id": "solicitudes-detalle", "from": "solicitudes", "to": "detalle", "label": "1 : N" },
+    { "id": "usuarios-solicitudes", "from": "usuarios", "to": "solicitudes", "label": "atendida_por 1 : N", "fromSide": "bottom", "toSide": "top", "labelAt": [500, 202] },
+    { "id": "repuestos-detalle", "from": "repuestos", "to": "detalle", "label": "repuesto_id", "variant": "dashed", "fromSide": "top", "toSide": "bottom" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Columnas nuevas (2026_09_26_100500)", "items": ["cod_referencia varchar(50) NULL", "cod_OC varchar(50) NULL", "dias_entrega int NULL", "centro_operacion varchar(50) NULL", "cod_centro_de_costo varchar(50) NULL", "proyecto varchar(100) NULL", "enviado varchar(1000) NULL"] },
+    { "dot": "amber", "title": "Reglas", "items": ["varchar real, no nvarchar (SQL nativo)", "cod_OC con mayuscula: Eloquent distingue la caja", "No fillable; cast dias_entrega integer", "Significado de negocio pendiente de definir"] },
+    { "dot": "slate", "title": "Relaciones existentes", "items": ["solicitante_erp_id nvarchar(30) -> col_codigo_erp", "atendida_por -> users.id", "detalle.solicitud_id -> tbl_solicitudes.id"] }
+  ]
+}

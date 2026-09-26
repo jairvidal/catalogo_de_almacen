@@ -95,10 +95,18 @@ class Solicitud extends Model
      * aprobada_at, denegada_at y motivo_denegacion NO son fillable: los escribe
      * unicamente AprobacionSolicitudService, despues de releer la solicitud con
      * bloqueo y de comprobar que pertenece al solicitante autenticado.
+     *
+     * cod_referencia, cod_OC, dias_entrega, centro_operacion,
+     * cod_centro_de_costo, proyecto y enviado (migracion 2026_09_26_100500)
+     * tampoco son fillable: hoy nada las escribe y su significado esta
+     * pendiente de definir; se abren cuando exista el flujo que las llene y
+     * su validacion. `cod_OC` va con la mayuscula: Eloquent distingue la caja
+     * del atributo aunque SQL Server no la distinga en la columna.
      */
     protected function casts(): array
     {
         return [
+            'dias_entrega' => 'integer',
             'aprobada_at' => 'datetime',
             'denegada_at' => 'datetime',
             'fecha_en_proceso' => 'datetime',
