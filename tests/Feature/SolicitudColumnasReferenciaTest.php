@@ -8,9 +8,11 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Columnas agregadas por la migracion 2026_09_26_100500. Se verifica contra el
- * catalogo porque el usuario pidio VARCHAR y no NVARCHAR, y $table->string()
- * de Laravel en sqlsrv habria dado nvarchar sin que ninguna otra prueba lo note.
+ * Columnas agregadas por la migracion 2026_09_26_100500, con los nombres
+ * definitivos que fija 2026_09_26_100700 (cod_centro_operacion y
+ * cod_proyecto). Se verifica contra el catalogo porque el usuario pidio
+ * VARCHAR y no NVARCHAR, y $table->string() de Laravel en sqlsrv habria dado
+ * nvarchar sin que ninguna otra prueba lo note.
  *
  * Corre contra la base de .env (ver phpunit.xml): DatabaseTransactions.
  */
@@ -23,11 +25,14 @@ class SolicitudColumnasReferenciaTest extends TestCase
         'cod_referencia' => ['varchar', 50],
         'cod_OC' => ['varchar', 50],
         'dias_entrega' => ['int', null],
-        'centro_operacion' => ['varchar', 50],
+        'cod_centro_operacion' => ['varchar', 50],
         'cod_centro_de_costo' => ['varchar', 50],
-        'proyecto' => ['varchar', 100],
+        'cod_proyecto' => ['varchar', 100],
         'enviado' => ['varchar', 1000],
     ];
+
+    /** Nombres que tuvieron antes de 2026_09_26_100700 y ya no deben existir. */
+    private const RETIRADAS = ['centro_operacion', 'proyecto'];
 
     public function test_las_columnas_existen_con_su_tipo_largo_y_son_nulables(): void
     {
@@ -49,6 +54,10 @@ class SolicitudColumnasReferenciaTest extends TestCase
             $this->assertSame($tipo, $columnas[$nombre]->tipo, "Tipo de {$nombre}.");
             $this->assertSame($largo, $columnas[$nombre]->largo === null ? null : (int) $columnas[$nombre]->largo, "Largo de {$nombre}.");
             $this->assertSame('YES', $columnas[$nombre]->nulable, "{$nombre} debe admitir NULL.");
+        }
+
+        foreach (self::RETIRADAS as $nombre) {
+            $this->assertArrayNotHasKey($nombre, $columnas, "{$nombre} ya debio renombrarse (2026_09_26_100700).");
         }
     }
 

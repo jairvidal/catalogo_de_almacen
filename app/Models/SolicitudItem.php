@@ -23,9 +23,17 @@ class SolicitudItem extends Model
         'nota',
     ];
 
+    /**
+     * cod_bodega, cod_motivo, cantidad, cod_unidad_medida, cod_unidad_negocio,
+     * cod_centro_operacion, cod_centro_de_costo, cod_proyecto, notas_item y
+     * descripcion_item (migracion 2026_09_26_100600) NO son fillable: hoy nada
+     * las escribe y su significado esta pendiente de definir. `cantidad` no es
+     * cantidad_solicitada ni cantidad_entregada, y `notas_item` no es `nota`.
+     */
     protected function casts(): array
     {
         return [
+            'cantidad' => 'decimal:3',
             'cantidad_solicitada' => 'integer',
             'cantidad_entregada' => 'integer',
         ];

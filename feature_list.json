@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.13",
+  "version": "1.4.15",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -528,7 +528,34 @@
             "Prueba SolicitudColumnasReferenciaTest: tipo, largo, nulabilidad, caja de cod_OC, cast y no fillable"
           ],
           "status": "done",
-          "notas": "Significado de negocio pendiente de definir, en especial enviado y la unidad de dias_entrega. Con select explicito, Eloquent devuelve el atributo con la caja escrita en la consulta (cod_oc != cod_OC): escribirla siempre cod_OC. varchar usa la pagina de codigos de Modern_Spanish_CI_AS (Windows-1252). Las columnas quedan al final de la tabla."
+          "notas": "Significado de negocio pendiente de definir, en especial enviado y la unidad de dias_entrega. Con select explicito, Eloquent devuelve el atributo con la caja escrita en la consulta (cod_oc != cod_OC): escribirla siempre cod_OC. varchar usa la pagina de codigos de Modern_Spanish_CI_AS (Windows-1252). Las columnas quedan al final de la tabla. centro_operacion y proyecto quedaron renombradas a cod_centro_operacion y cod_proyecto por decision del usuario: ver SOL-10."
+        },
+        {
+          "id": "SOL-09",
+          "name": "tbl_solicitud_detalle: columnas cod_bodega, cod_motivo, cantidad, cod_unidad_medida, cod_unidad_negocio, cod_centro_operacion, cod_centro_de_costo, cod_proyecto, notas_item y descripcion_item (solo esquema, todas NULL)",
+          "acceptance": [
+            "Migracion 2026_09_26_100600 con SQL nativo: cod_bodega varchar(10), cod_motivo varchar(50), cantidad decimal(12,3), cod_unidad_medida varchar(5), cod_unidad_negocio varchar(5), cod_centro_operacion varchar(5), cod_centro_de_costo varchar(10), cod_proyecto varchar(100), notas_item varchar(500), descripcion_item varchar(500), todas NULL",
+            "Tipos verificados en INFORMATION_SCHEMA.COLUMNS: varchar real y decimal(12,3)",
+            "Si alguna columna ya existe, la migracion aborta antes de escribir y dice cuales; down() suelta las que encuentre",
+            "SolicitudItem: cast cantidad => decimal:3; ninguna de las diez es fillable",
+            "No se agregan a formularios, vistas, validacion, servicios ni correos",
+            "Prueba SolicitudDetalleColumnasReferenciaTest: tipo, largo o precision/escala, nulabilidad, cast y no fillable"
+          ],
+          "status": "done",
+          "notas": "cantidad: el usuario pidio decimal(4,4) (solo admite valores < 1) y eligio decimal(12,3), como repuestos.stock/existencia. descripcion_item sin tilde por convencion (el usuario la escribio con tilde). cantidad no es cantidad_solicitada ni cantidad_entregada, notas_item no es nota y descripcion_item no es nombre: su relacion esta pendiente de definir, igual que el catalogo de origen de cada codigo. Longitudes distintas a las de la cabecera (cod_centro_operacion y cod_centro_de_costo varchar(50) en tbl_solicitudes; varchar(5) y varchar(10) aqui), sin corregir."
+        },
+        {
+          "id": "SOL-10",
+          "name": "tbl_solicitudes: nombres definitivos cod_centro_operacion y cod_proyecto (antes centro_operacion y proyecto)",
+          "acceptance": [
+            "Migracion 2026_09_26_100700 idempotente por par con sp_rename: vieja si y nueva no -> renombra; nueva si y vieja no -> nada; las dos o ninguna -> aborta antes de tocar nada",
+            "down() inverso con la misma regla, para que el down() de 2026_09_26_100500 encuentre los nombres que creo",
+            "No se edita 2026_09_26_100500 (ya ejecutada)",
+            "SolicitudColumnasReferenciaTest exige los nombres cod_ y que centro_operacion y proyecto ya no existan; conserva la verificacion de caja de cod_OC",
+            "Sin referencias a los nombres viejos en codigo, CLAUDE.md ni en el diagrama ER"
+          ],
+          "status": "done",
+          "notas": "En la base de desarrollo las columnas ya se habian renombrado a mano, por eso up() es un no-op alli; el renombre real se probo con rollback (cod_ -> viejos) y migrate (viejos -> cod_), y la cadena completa 100500-100700 con rollback --step=3 y migrate. formato.txt (borrador del usuario del payload RQF al ERP) no se toco: sus menciones de centro_operacion son del detalle."
         }
       ]
     }

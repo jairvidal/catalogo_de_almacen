@@ -96,8 +96,9 @@ class Solicitud extends Model
      * unicamente AprobacionSolicitudService, despues de releer la solicitud con
      * bloqueo y de comprobar que pertenece al solicitante autenticado.
      *
-     * cod_referencia, cod_OC, dias_entrega, centro_operacion,
-     * cod_centro_de_costo, proyecto y enviado (migracion 2026_09_26_100500)
+     * cod_referencia, cod_OC, dias_entrega, cod_centro_operacion,
+     * cod_centro_de_costo, cod_proyecto y enviado (migraciones
+     * 2026_09_26_100500 y 2026_09_26_100700, que fija los dos nombres cod_)
      * tampoco son fillable: hoy nada las escribe y su significado esta
      * pendiente de definir; se abren cuando exista el flujo que las llene y
      * su validacion. `cod_OC` va con la mayuscula: Eloquent distingue la caja
