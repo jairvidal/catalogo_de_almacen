@@ -10,7 +10,7 @@ class SolicitudItem extends Model
 {
     use HasFactory;
 
-    protected $table = 'solicitud_items';
+    protected $table = 'tbl_solicitud_detalle';
 
     protected $fillable = [
         'solicitud_id',

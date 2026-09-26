@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.10",
+  "version": "1.4.11",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -486,6 +486,20 @@
           ],
           "status": "done",
           "notas": "Las columnas siguen sin prefijo col_: renombrarlas seria un paso futuro aparte. En la base de desarrollo no existen las FK solicitud_items.solicitud_id ni solicitudes.solicitante_erp_id aunque sus migraciones las crean; la migracion no las crea (fuera de alcance). Cualquier consulta, vista, reporte o integracion externa que lea la tabla solicitudes deja de funcionar al migrar."
+        },
+        {
+          "id": "SOL-06",
+          "name": "Renombrar la tabla solicitud_items a tbl_solicitud_detalle (solo el nombre de la tabla)",
+          "acceptance": [
+            "Migracion nueva que renombra la tabla con sp_rename, sin perder datos, identidad, indices ni FK, y con down() que la devuelve exactamente al estado anterior",
+            "Los indices y restricciones con nombre propio pasan de solicitud_items_* a tbl_solicitud_detalle_*, leidos del catalogo; los nombres generados por SQL Server (PK__) se dejan",
+            "La migracion aborta con mensaje claro si falta la tabla vieja o ya existe la nueva",
+            "No se renombran columnas, ni el modelo SolicitudItem, ni la relacion Solicitud::items(), ni textos de UI",
+            "El modelo SolicitudItem apunta a tbl_solicitud_detalle y la subconsulta ITEMS de scopeOrdenarBandeja toma el nombre del modelo, no de un literal",
+            "Las migraciones ya ejecutadas no se editan"
+          ],
+          "status": "done",
+          "notas": "En la base de desarrollo siguen sin existir las FK solicitud_items.solicitud_id y solicitud_items.repuesto_id aunque la migracion original las crea; no se recrearon (fuera de alcance). Renombrar el modelo a SolicitudDetalle y la relacion items() queda como posible paso futuro. Cualquier consulta, vista, reporte o integracion externa que lea solicitud_items deja de funcionar al migrar."
         }
       ]
     }

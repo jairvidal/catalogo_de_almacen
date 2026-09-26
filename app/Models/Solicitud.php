@@ -401,7 +401,7 @@ class Solicitud extends Model
             'items' => $query->orderBy(
                 SolicitudItem::query()
                     ->selectRaw('count(*)')
-                    ->whereColumn('solicitud_items.solicitud_id', $query->qualifyColumn('id')),
+                    ->whereColumn((new SolicitudItem)->qualifyColumn('solicitud_id'), $query->qualifyColumn('id')),
                 $direccion
             ),
             'estado' => $query->orderByRaw(self::sqlOrdenEstado().' '.$direccion, array_keys(self::ESTADOS)),
