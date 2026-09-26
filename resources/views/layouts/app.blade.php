@@ -46,6 +46,12 @@
                         <i class="bi bi-search me-1"></i>Consultar mi solicitud
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('solicitante.*') ? 'active fw-semibold text-marca' : '' }}"
+                       href="{{ route('solicitante.solicitudes.index') }}">
+                        <i class="bi bi-person-check me-1"></i>Aprobar solicitudes
+                    </a>
+                </li>
             </ul>
 
             <div class="d-flex align-items-center gap-2">
@@ -57,7 +63,24 @@
                           data-contador-carrito>{{ $referenciasCarrito }}</span>
                 </a>
 
-                @auth
+                {{-- Guard del solicitante: su nombre y salir. Va aparte del panel. --}}
+                @auth('solicitante')
+                    <span class="small text-secondary d-none d-xl-inline text-truncate" style="max-width:12rem"
+                          title="{{ auth('solicitante')->user()->col_nombre }}">
+                        {{ auth('solicitante')->user()->col_nombre }}
+                    </span>
+                    <form method="POST" action="{{ route('solicitante.logout') }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-secondary" title="Cerrar sesion del portal">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span class="d-lg-none ms-1">Salir del portal</span>
+                        </button>
+                    </form>
+                @endauth
+
+                {{-- Guard web explicito: en las rutas del portal el guard por defecto
+                     es el del solicitante, y @auth a secas lo confundiria con el panel. --}}
+                @auth('web')
                     <a href="{{ route('admin.solicitudes.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-speedometer2 me-1"></i>Panel
                     </a>

@@ -7,7 +7,7 @@
     // Se cuenta lo que esta a la espera de accion del almacenista para el
     // indicador rojo del menu. Solo si el perfil ve las solicitudes.
     $porAtender = $verSolicitudes
-        ? \App\Models\Solicitud::whereIn('estado', [
+        ? \App\Models\Solicitud::visiblesParaAlmacen()->whereIn('estado', [
             \App\Models\Solicitud::ESTADO_PENDIENTE,
             \App\Models\Solicitud::ESTADO_EN_PROCESO,
         ])->count()
@@ -16,6 +16,7 @@
     // Cada entrada se pinta solo si el perfil puede VER la funcionalidad.
     // Ocultarla no es la barrera: la ruta vuelve a pedir el permiso.
     $gestion = [
+        [Funcionalidad::SOLICITANTES, 'admin.solicitantes', 'person-lines-fill', 'Solicitantes del ERP'],
         [Funcionalidad::REPUESTOS, 'admin.repuestos', 'box-seam', 'Catalogo e inventario'],
         [Funcionalidad::CATEGORIAS, 'admin.categorias', 'tags', 'Categorias'],
         [Funcionalidad::ROLES, 'admin.roles', 'person-badge', 'Roles'],

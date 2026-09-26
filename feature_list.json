@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -450,6 +450,27 @@
           ],
           "status": "done",
           "notas": "No se hizo revision visual en el navegador. La API del ERP para sincronizar solicitantes queda pendiente."
+        },
+        {
+          "id": "SOL-04",
+          "name": "Aprobacion de la solicitud por el solicitante del ERP: estado por_aprobar, portal del solicitante con usuario y contrasena, y asignacion de contrasena desde el panel",
+          "acceptance": [
+            "Estado nuevo por_aprobar en Solicitud::ESTADOS con etiqueta, color e icono propios y sin el rojo de marca; las solicitudes nuevas nacen por_aprobar y las historicas no se migran",
+            "Aprobar pasa a pendiente y Denegar a rechazada con motivo opcional; columnas aprobada_at, denegada_at y motivo_denegacion con CHECK de estados y de una sola decision",
+            "Las transiciones van en AprobacionSolicitudService, en transaccion, releyendo con lockForUpdate y exigiendo por_aprobar y pertenencia al solicitante autenticado; doble clic y solicitud ajena no deciden",
+            "El almacen no ve ni despacha las por_aprobar ni las denegadas: bandeja, conteos, select de estado e indicador del menu las excluyen y cada accion del panel responde 404",
+            "El aviso al almacen de solicitud nueva sale al aprobar, no al crear",
+            "Guard solicitante separado de users; usuario = col_correo; solo activos con correo no compartido entre activos; throttle, regenerar sesion, logout que invalida y mensaje sin enumeracion",
+            "Reimportar el CSV de solicitantes no borra ni pisa las columnas de contrasena",
+            "Pagina /admin/solicitantes con funcionalidad solicitantes (ver/editar), listado paginado con busqueda y boton Asignar contrasena / Restablecer al final de cada fila",
+            "La contrasena la genera el servidor, se guarda solo el hash y se envia al correo del solicitante; el administrador nunca la ve (ni pantalla, ni flash, ni log)",
+            "Si el correo de la contrasena falla, la asignacion se revierte y se informa el error",
+            "Cambio de contrasena desde la pagina de ingreso con correo, actual, nueva y confirmacion",
+            "Portal: listado paginado solo de las propias (scopeDelSolicitante) con por_aprobar primero y detalle completo; una ajena da 404; Aprobar y Denegar solo si esta por_aprobar",
+            "Correos de aprobada (uno solo para solicitante y quien la hizo), denegada y contrasena asignada; un fallo de SMTP no tumba la decision y queda en error_notificacion"
+          ],
+          "status": "done",
+          "notas": "En la base real hay 2 solicitantes y comparten el mismo correo: a ninguno se le puede asignar contrasena hasta corregirlo en el ERP. auth.session (cierre de sesiones al cambiar la clave) no tiene prueba automatica. No se hizo revision visual en el navegador."
         }
       ]
     }

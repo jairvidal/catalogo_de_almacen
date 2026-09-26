@@ -2,9 +2,11 @@
 
 use App\Http\Middleware\EnsureEsAdmin;
 use App\Http\Middleware\EnsurePermiso;
+use App\Http\Middleware\EnsureSolicitanteActivo;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,10 +22,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'es.admin' => EnsureEsAdmin::class,
             'permiso' => EnsurePermiso::class,
+            'solicitante.activo' => EnsureSolicitanteActivo::class,
         ]);
 
-        // Los invitados que intenten entrar al panel van al login del almacen.
-        $middleware->redirectGuestsTo(fn () => route('admin.login'));
+        // Los invitados van al login que corresponde a la zona que pidieron:
+        // el portal del solicitante tiene el suyo, separado del del almacen.
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->routeIs('solicitante.*')
+            ? route('solicitante.login')
+            : route('admin.login'));
 
         // El valor de un parametro se guarda literal. Laravel recorta por
         // defecto toda la entrada, y eso borraba en silencio el espacio final

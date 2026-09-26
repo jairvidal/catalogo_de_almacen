@@ -16,10 +16,11 @@
 
                     <h1 class="h3 mb-2">Su solicitud fue enviada</h1>
                     <p class="text-secondary mb-4">
-                        El almacen ya la recibio.
+                        Ahora espera la aprobacion de <strong>{{ $solicitud->solicitante_nombre }}</strong>;
+                        cuando la apruebe pasara al almacen.
                         @if ($solicitud->correoAvisoEnmascarado())
                             Le llegara un correo a <strong>{{ $solicitud->correoAvisoEnmascarado() }}</strong>
-                            cuando el pedido este listo para reclamar.
+                            cuando se apruebe o se deniegue, y otro cuando el pedido este listo para reclamar.
                         @else
                             No tiene un correo registrado en el almacen: consulte el estado con el numero de abajo.
                         @endif

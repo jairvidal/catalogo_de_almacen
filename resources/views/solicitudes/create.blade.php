@@ -5,7 +5,7 @@
 @section('contenido')
 
     <div class="mb-4">
-        <h1 class="h3 mb-1">Datos del solicitante</h1>
+        <h1 class="h3 mb-1">Datos del Peticionario</h1>
         <p class="text-secondary mb-0">
             Seleccione su nombre para que el almacen pueda identificarlo y avisarle cuando el pedido este listo.
         </p>
@@ -21,15 +21,16 @@
                     <div class="row g-3">
                         <div class="col-12">
                             <label for="nombre_completo" class="form-label">
-                                Nombre completo <span class="text-danger">*</span>
+                                Nombre completo solicitante <span class="text-danger">*</span>
                             </label>
                             <input type="text" class="form-control @error('nombre_completo') is-invalid @enderror"
                                    id="nombre_completo" name="nombre_completo"
                                    value="{{ old('nombre_completo') }}" maxlength="150" required autofocus
-                                   autocomplete="name" placeholder="Nombres y apellidos">
+                                   autocomplete="name" placeholder="Ingrese el nombres y apellidos">
                             @error('nombre_completo')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+							<div id="msg" class="form-text">Aqui se registra la informaciòn de la persona que requiere el repuesto o consumible</div>
                         </div>
 
                         <div class="col-12">
@@ -38,15 +39,15 @@
                                 'idCampo' => 'solicitante_buscar',
                                 'elegido' => $solicitanteElegido,
                                 'requerido' => true,
-                                'ayuda' => 'Busque su nombre y seleccionelo de la lista. Al correo que tiene registrado el almacen le llegara el aviso cuando el pedido este listo.',
+                                'ayuda' => 'Busque de la persona que aprobarà esta requisiciòn, seleccionelo de la lista. Al correo que tiene registrado el almacen le llegara el aviso cuando el pedido este listo.',
                             ])
                         </div>
 
                         <div class="col-12">
-                            <label for="observaciones" class="form-label">Observaciones para el almacen</label>
+                            <label for="observaciones" class="form-label">Observaciones</label>
                             <textarea class="form-control @error('observaciones') is-invalid @enderror"
                                       id="observaciones" name="observaciones" rows="3" maxlength="1000"
-                                      placeholder="Equipo, orden de trabajo o cualquier detalle util">{{ old('observaciones') }}</textarea>
+                                      placeholder="Equipo, orden de trabajo o cualquier detalle util para la entrega">{{ old('observaciones') }}</textarea>
                             @error('observaciones')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror

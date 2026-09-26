@@ -147,7 +147,8 @@
                             <select id="filtro-estado" name="estado" form="filtros-solicitudes"
                                     class="form-select form-select-sm filtro-columna" data-autoenviar>
                                 <option value="">Todos</option>
-                                @foreach (\App\Models\Solicitud::ESTADOS as $claveEstado => $datosEstado)
+                                {{-- Sin "Por aprobar": esas solicitudes todavia no llegan al almacen. --}}
+                                @foreach (\App\Models\Solicitud::estadosDelAlmacen() as $claveEstado => $datosEstado)
                                     <option value="{{ $claveEstado }}" @selected($estadoActivo === $claveEstado)>
                                         {{ $datosEstado['label'] }}
                                     </option>

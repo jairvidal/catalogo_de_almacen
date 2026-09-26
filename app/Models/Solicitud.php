@@ -12,6 +12,13 @@ class Solicitud extends Model
 {
     use HasFactory;
 
+    /**
+     * La solicitud nueva espera a que el solicitante del ERP la apruebe o la
+     * deniegue desde su portal. El almacen NO la ve mientras tanto: ver
+     * llegoAlAlmacen() y scopeVisiblesParaAlmacen().
+     */
+    public const ESTADO_POR_APROBAR = 'por_aprobar';
+
     public const ESTADO_PENDIENTE = 'pendiente';
 
     public const ESTADO_EN_PROCESO = 'en_proceso';
@@ -40,9 +47,13 @@ class Solicitud extends Model
      * marca. Ningun estado usa el rojo de senalizacion; ese queda para las
      * acciones. Ver el bloque "Estados de la solicitud" en app.css.
      *
+     * El orden es el avance del flujo (lo usa el orden por estado): por_aprobar
+     * va primero porque es el paso anterior a todo lo del almacen.
+     *
      * @var array<string, array{label: string, color: string, icono: string}>
      */
     public const ESTADOS = [
+        self::ESTADO_POR_APROBAR => ['label' => 'Por aprobar', 'color' => 'estado-por-aprobar', 'icono' => 'person-check'],
         self::ESTADO_PENDIENTE => ['label' => 'Pendiente', 'color' => 'estado-pendiente', 'icono' => 'hourglass'],
         self::ESTADO_EN_PROCESO => ['label' => 'En proceso', 'color' => 'estado-en-proceso', 'icono' => 'box-seam'],
         self::ESTADO_LISTO => ['label' => 'Listo para reclamar', 'color' => 'estado-listo', 'icono' => 'check-circle'],
@@ -80,9 +91,16 @@ class Solicitud extends Model
         'error_notificacion',
     ];
 
+    /**
+     * aprobada_at, denegada_at y motivo_denegacion NO son fillable: los escribe
+     * unicamente AprobacionSolicitudService, despues de releer la solicitud con
+     * bloqueo y de comprobar que pertenece al solicitante autenticado.
+     */
     protected function casts(): array
     {
         return [
+            'aprobada_at' => 'datetime',
+            'denegada_at' => 'datetime',
             'fecha_en_proceso' => 'datetime',
             'fecha_listo' => 'datetime',
             'fecha_entrega' => 'datetime',
@@ -196,6 +214,82 @@ class Solicitud extends Model
     private static function enmascarar(string $texto, int $visibles): string
     {
         return mb_substr($texto, 0, $visibles).'***';
+    }
+
+    /**
+     * Destinatarios de los avisos de la decision del solicitante (aprobada o
+     * denegada). Hoy la persona que hizo la solicitud no tiene correo propio,
+     * asi que los dos avisos -al solicitante y a quien la hizo- van al mismo
+     * buzon: correoDeAviso(). Se devuelve una LISTA sin repetidos para que el
+     * dia que exista un segundo destinatario (p. ej. un correo digitado por
+     * quien la hizo) baste con agregarlo aqui, sin que nadie reciba dos copias.
+     *
+     * @return list<string>
+     */
+    public function destinatariosDeDecision(): array
+    {
+        return collect([$this->correoDeAviso()])
+            ->filter()
+            ->map(fn (string $correo) => mb_strtolower($correo))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * ¿La solicitud ya es trabajo del almacen? Es la UNICA definicion de esa
+     * regla (su gemela en SQL es scopeVisiblesParaAlmacen). No lo es mientras
+     * espera la aprobacion del solicitante ni despues de que el solicitante la
+     * denego: esas nunca llegaron al almacen. Las historicas (sin fechas de
+     * decision) si llegaron.
+     */
+    public function llegoAlAlmacen(): bool
+    {
+        return $this->estado !== self::ESTADO_POR_APROBAR && $this->denegada_at === null;
+    }
+
+    /**
+     * Lo que ven las bandejas del panel: la misma regla que llegoAlAlmacen().
+     */
+    public function scopeVisiblesParaAlmacen(Builder $query): Builder
+    {
+        return $query->where('estado', '<>', self::ESTADO_POR_APROBAR)->whereNull('denegada_at');
+    }
+
+    /**
+     * Estados que el almacen puede ver y filtrar en su bandeja: todos menos
+     * por_aprobar, que no le llega.
+     *
+     * @return array<string, array{label: string, color: string, icono: string}>
+     */
+    public static function estadosDelAlmacen(): array
+    {
+        return array_diff_key(self::ESTADOS, [self::ESTADO_POR_APROBAR => true]);
+    }
+
+    /**
+     * Orden del portal del solicitante: primero lo que espera su decision,
+     * luego lo mas reciente.
+     */
+    public function scopePorAprobarPrimero(Builder $query): Builder
+    {
+        return $query->orderByRaw('case when [estado] = ? then 0 else 1 end', [self::ESTADO_POR_APROBAR])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
+    public function getEstaPorAprobarAttribute(): bool
+    {
+        return $this->estado === self::ESTADO_POR_APROBAR;
+    }
+
+    /**
+     * Rechazada por el SOLICITANTE (no por el almacen): las dos terminan en el
+     * estado rechazada, y lo que las distingue es denegada_at.
+     */
+    public function getFueDenegadaAttribute(): bool
+    {
+        return $this->denegada_at !== null;
     }
 
     public function scopeEstado(Builder $query, ?string $estado): Builder
@@ -351,6 +445,12 @@ class Solicitud extends Model
 
     public function getEstadoLabelAttribute(): string
     {
+        // Mismo estado rechazada, pero no la misma historia: la denego el
+        // solicitante, no el almacen.
+        if ($this->fue_denegada) {
+            return 'Denegada';
+        }
+
         return self::ESTADOS[$this->estado]['label'] ?? $this->estado;
     }
 

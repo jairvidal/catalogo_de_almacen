@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\SolicitanteErp;
 use App\Models\User;
 
 return [
@@ -42,6 +43,14 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Portal de aprobacion del solicitante del ERP. Guard aparte y sobre
+        // otra tabla: un solicitante nunca es un usuario del panel, y el
+        // middleware `auth` del panel (guard web) no lo deja pasar.
+        'solicitante' => [
+            'driver' => 'session',
+            'provider' => 'solicitantes',
+        ],
     ],
 
     /*
@@ -65,6 +74,14 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        // El ingreso NO usa retrieveByCredentials de este provider: lo resuelve
+        // SolicitanteErp::paraIngreso(), que exige un solo activo por correo.
+        // El provider se usa para rehidratar la sesion y el "recordarme".
+        'solicitantes' => [
+            'driver' => 'eloquent',
+            'model' => SolicitanteErp::class,
         ],
 
         // 'users' => [

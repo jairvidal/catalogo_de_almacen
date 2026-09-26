@@ -19,12 +19,14 @@ class SolicitudAdminController extends Controller
     public function index(Request $request): View
     {
         // El estado llega por la URL (tarjetas de conteo y select de la fila de
-        // filtros comparten el mismo parametro). Solo se acepta una clave de
-        // Solicitud::ESTADOS; cualquier otra cosa equivale a "todas".
+        // filtros comparten el mismo parametro). Solo se acepta un estado que
+        // el almacen puede ver; cualquier otra cosa (por_aprobar incluido)
+        // equivale a "todas".
         $estado = $request->string('estado')->toString();
-        $estado = array_key_exists($estado, Solicitud::ESTADOS) ? $estado : '';
+        $estado = array_key_exists($estado, Solicitud::estadosDelAlmacen()) ? $estado : '';
 
         $conteos = Solicitud::query()
+            ->visiblesParaAlmacen()
             ->selectRaw('estado, COUNT(*) as total')
             ->groupBy('estado')
             ->pluck('total', 'estado');
@@ -94,6 +96,8 @@ class SolicitudAdminController extends Controller
         ], fn ($valor) => $valor !== '');
 
         $solicitudes = Solicitud::query()
+            // Lo que el solicitante no ha aprobado, o denego, no es del almacen.
+            ->visiblesParaAlmacen()
             ->with('atendidaPor')
             ->withCount('items')
             ->estado($estado)
@@ -118,6 +122,8 @@ class SolicitudAdminController extends Controller
      */
     public function show(Solicitud $solicitud): View
     {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
         $solicitud->load(['items.repuesto', 'atendidaPor']);
 
         return view('admin.solicitudes.show', ['solicitud' => $solicitud]);
@@ -128,6 +134,8 @@ class SolicitudAdminController extends Controller
      */
     public function tomar(Solicitud $solicitud): RedirectResponse
     {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
         if ($solicitud->estado !== Solicitud::ESTADO_PENDIENTE) {
             return back()->with('error', 'La solicitud ya fue tomada o cerrada.');
         }
@@ -146,6 +154,8 @@ class SolicitudAdminController extends Controller
      */
     public function marcarListo(Request $request, Solicitud $solicitud, SolicitudService $servicio): RedirectResponse
     {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
         if ($solicitud->esta_cerrada || $solicitud->estado === Solicitud::ESTADO_LISTO) {
             return back()->with('error', 'La solicitud ya fue elaborada o esta cerrada.');
         }
@@ -187,6 +197,8 @@ class SolicitudAdminController extends Controller
      */
     public function entregar(Solicitud $solicitud): RedirectResponse
     {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
         if ($solicitud->estado !== Solicitud::ESTADO_LISTO) {
             return back()->with('error', 'Solo se puede entregar un pedido que este listo para reclamar.');
         }
@@ -201,6 +213,8 @@ class SolicitudAdminController extends Controller
 
     public function rechazar(Request $request, Solicitud $solicitud): RedirectResponse
     {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
         if ($solicitud->esta_cerrada) {
             return back()->with('error', 'La solicitud ya esta cerrada.');
         }
@@ -233,6 +247,8 @@ class SolicitudAdminController extends Controller
      */
     public function reenviarAviso(Solicitud $solicitud, SolicitudService $servicio): RedirectResponse
     {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
         if ($solicitud->estado !== Solicitud::ESTADO_LISTO) {
             return back()->with('error', 'Solo se avisa cuando el pedido esta listo para reclamar.');
         }
@@ -240,5 +256,15 @@ class SolicitudAdminController extends Controller
         return $servicio->notificarPedidoListo($solicitud)
             ? back()->with('exito', "Aviso reenviado a {$solicitud->correoDeAviso()}.")
             : back()->with('error', 'No se pudo enviar el correo. '.$this->causaSinAviso($solicitud).'.');
+    }
+
+    /**
+     * Una solicitud por aprobar (o denegada por el solicitante) no existe para
+     * el almacen: 404 en el detalle y en cada accion, no solo fuera de la
+     * bandeja. Es la barrera real; ocultarla del listado es solo la cara visible.
+     */
+    private function exigirQueLlegoAlAlmacen(Solicitud $solicitud): void
+    {
+        abort_unless($solicitud->llegoAlAlmacen(), 404);
     }
 }

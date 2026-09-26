@@ -24,12 +24,14 @@ class FuncionalidadSeeder extends Seeder
 {
     /**
      * Las funcionalidades que existen hoy en el panel. No hay modulo de
-     * usuarios: cuando exista, se agrega aqui y en sus rutas.
+     * usuarios: cuando exista, se agrega aqui y en sus rutas. "solicitantes"
+     * no se hereda: a un rol ya configurado le aparece desmarcada.
      *
      * @var list<array{clave: string, nombre: string, seccion: string, icono: string, orden: int}>
      */
     private const FUNCIONALIDADES = [
         ['clave' => Funcionalidad::SOLICITUDES, 'nombre' => 'Solicitudes', 'seccion' => 'Operacion', 'icono' => 'inbox', 'orden' => 10],
+        ['clave' => Funcionalidad::SOLICITANTES, 'nombre' => 'Solicitantes del ERP', 'seccion' => 'Operacion', 'icono' => 'person-lines-fill', 'orden' => 15],
         ['clave' => Funcionalidad::REPUESTOS, 'nombre' => 'Catalogo e inventario', 'seccion' => 'Catalogos', 'icono' => 'box-seam', 'orden' => 20],
         ['clave' => Funcionalidad::CATEGORIAS, 'nombre' => 'Categorias', 'seccion' => 'Catalogos', 'icono' => 'tags', 'orden' => 30],
         ['clave' => Funcionalidad::ROLES, 'nombre' => 'Roles', 'seccion' => 'Parametrizacion', 'icono' => 'person-badge', 'orden' => 40],

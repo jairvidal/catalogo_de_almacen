@@ -6,9 +6,12 @@ use App\Http\Controllers\Admin\ParametroAdminController;
 use App\Http\Controllers\Admin\PermisoAdminController;
 use App\Http\Controllers\Admin\RepuestoAdminController;
 use App\Http\Controllers\Admin\RolAdminController;
+use App\Http\Controllers\Admin\SolicitanteAdminController;
 use App\Http\Controllers\Admin\SolicitudAdminController;
 use App\Http\Controllers\CarritoController;
 use App\Http\Controllers\CatalogoController;
+use App\Http\Controllers\Solicitante\AccesoController;
+use App\Http\Controllers\Solicitante\SolicitudPortalController;
 use App\Http\Controllers\SolicitanteController;
 use App\Http\Controllers\SolicitudController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +55,39 @@ Route::get('/solicitantes/buscar', [SolicitanteController::class, 'buscar'])
 
 /*
 |--------------------------------------------------------------------------
+| Portal del solicitante del ERP
+|--------------------------------------------------------------------------
+| Guard `solicitante`, separado del panel: usuario = su correo del ERP. Aqui
+| aprueba o deniega las solicitudes hechas a su nombre antes de que lleguen
+| al almacen.
+*/
+
+Route::prefix('solicitante')->name('solicitante.')->group(function () {
+    Route::controller(AccesoController::class)->group(function () {
+        Route::get('/ingresar', 'showLogin')->name('login');
+        // El throttle por IP se suma al limite por correo + IP del servicio.
+        Route::post('/ingresar', 'login')->middleware('throttle:10,1')->name('login.attempt');
+        Route::get('/cambiar-contrasena', 'editContrasena')->name('contrasena.edit');
+        Route::post('/cambiar-contrasena', 'updateContrasena')->middleware('throttle:10,1')->name('contrasena.update');
+    });
+
+    // auth.session cierra la sesion si la contrasena cambio (restablecida por
+    // el administrador o cambiada en otro equipo); solicitante.activo, si el
+    // ERP lo inactivo.
+    Route::middleware(['auth:solicitante', 'auth.session', 'solicitante.activo'])->group(function () {
+        Route::post('/salir', [AccesoController::class, 'logout'])->name('logout');
+
+        Route::controller(SolicitudPortalController::class)->prefix('solicitudes')->name('solicitudes.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+            Route::post('/{id}/aprobar', 'aprobar')->whereNumber('id')->middleware('throttle:30,1')->name('aprobar');
+            Route::post('/{id}/denegar', 'denegar')->whereNumber('id')->middleware('throttle:30,1')->name('denegar');
+        });
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
 | Panel del almacen
 |--------------------------------------------------------------------------
 | Aqui llegan todas las solicitudes. Requiere usuario y contrasena.
@@ -63,7 +99,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         ->middleware('throttle:10,1')
         ->name('login.attempt');
 
-    Route::middleware('auth')->group(function () {
+    // Guard web EXPLICITO: con `auth` a secas mandaria el guard por defecto de
+    // la peticion, y un solicitante del portal (guard solicitante) no debe
+    // poder llegar nunca a una ruta del panel.
+    Route::middleware('auth:web')->group(function () {
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
         // Cada ruta del panel pide su permiso de la matriz Funciones por
@@ -87,6 +126,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/{solicitud}/rechazar', 'rechazar')->name('rechazar')->middleware('permiso:solicitudes,eliminar');
             Route::post('/{solicitud}/reenviar-aviso', 'reenviarAviso')->name('reenviar')->middleware('permiso:solicitudes,editar');
         });
+
+        // Solicitantes del ERP: listado de solo lectura y asignar/restablecer la
+        // contrasena del portal (editar). La clave va al correo del solicitante.
+        Route::prefix('solicitantes')->name('solicitantes.')
+            ->controller(SolicitanteAdminController::class)->group(function () {
+                Route::get('/', 'index')->name('index')->middleware('permiso:solicitantes,ver');
+                Route::post('/{solicitante}/contrasena', 'asignarContrasena')->whereNumber('solicitante')
+                    ->name('contrasena')->middleware(['permiso:solicitantes,editar', 'throttle:20,1']);
+            });
 
         Route::prefix('repuestos')->name('repuestos.')
             ->controller(RepuestoAdminController::class)->group(function () {

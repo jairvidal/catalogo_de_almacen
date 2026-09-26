@@ -22,7 +22,7 @@
      data-url="{{ route('solicitantes.buscar') }}"
      data-minimo="{{ \App\Models\SolicitanteErp::MINIMO_BUSQUEDA }}">
     <label for="{{ $idCampo }}" class="form-label">
-        Solicitante @if ($requerido)<span class="text-danger">*</span>@endif
+        Aprobador @if ($requerido)<span class="text-danger">*</span>@endif
     </label>
 
     <div class="combo-campo">

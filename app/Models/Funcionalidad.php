@@ -28,6 +28,13 @@ class Funcionalidad extends Model
 
     public const PARAMETROS = 'parametros';
 
+    /**
+     * Solicitantes del ERP: listado y asignacion de la contrasena del portal de
+     * aprobacion. No esta en ninguna lista de herencia: solo la tiene quien la
+     * reciba marcada en la matriz (y el admin del sistema, que puede todo).
+     */
+    public const SOLICITANTES = 'solicitantes';
+
     public const ACCION_VER = 'ver';
 
     public const ACCION_EDITAR = 'editar';

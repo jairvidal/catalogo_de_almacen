@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Mail\NuevaSolicitudMail;
 use App\Mail\PedidoListoMail;
 use App\Models\Repuesto;
 use App\Models\SolicitanteErp;
@@ -84,7 +83,9 @@ class SolicitudService
                 'solicitante_area' => $solicitante->col_area,
             ]);
             $solicitud->solicitante_erp_id = $solicitante->id;
-            $solicitud->estado = Solicitud::ESTADO_PENDIENTE;
+            // Nace esperando la aprobacion del solicitante del ERP: el almacen
+            // no la ve hasta que la apruebe (AprobacionSolicitudService).
+            $solicitud->estado = Solicitud::ESTADO_POR_APROBAR;
             $solicitud->numero = $this->siguienteNumero();
             $solicitud->save();
 
@@ -103,7 +104,9 @@ class SolicitudService
 
         $this->carrito->vaciar();
 
-        $this->avisarAlAlmacen($solicitud);
+        // El aviso al almacen ya NO sale aqui: sale al aprobar
+        // (AprobacionSolicitudService::aprobar), que es cuando la solicitud
+        // entra de verdad a su bandeja.
 
         return $solicitud->load('items');
     }
@@ -159,6 +162,14 @@ class SolicitudService
      */
     public function marcarListo(Solicitud $solicitud, User $usuario, array $cantidadesEntregadas, ?string $nota = null): Solicitud
     {
+        // Segunda barrera (la primera es el 404 del controlador): lo que el
+        // solicitante no aprobo no se despacha ni descuenta inventario.
+        if (! $solicitud->llegoAlAlmacen()) {
+            throw new \LogicException(
+                "La solicitud {$solicitud->numero} no fue aprobada por el solicitante: el almacen no la puede despachar."
+            );
+        }
+
         DB::transaction(function () use ($solicitud, $usuario, $cantidadesEntregadas, $nota) {
             $solicitud->load('items.repuesto');
 
@@ -238,30 +249,6 @@ class SolicitudService
             ])->save();
 
             return false;
-        }
-    }
-
-    /**
-     * Aviso opcional al almacen cuando entra una solicitud nueva.
-     */
-    private function avisarAlAlmacen(Solicitud $solicitud): void
-    {
-        $destinos = collect(explode(',', (string) config('almacen.notificacion_email')))
-            ->map(fn ($correo) => trim($correo))
-            ->filter()
-            ->values();
-
-        if ($destinos->isEmpty()) {
-            return;
-        }
-
-        try {
-            Mail::to($destinos->all())->send(new NuevaSolicitudMail($solicitud->load('items')));
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo avisar al almacen de la nueva solicitud', [
-                'solicitud' => $solicitud->numero,
-                'error' => $e->getMessage(),
-            ]);
         }
     }
 

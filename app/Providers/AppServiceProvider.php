@@ -26,7 +26,9 @@ class AppServiceProvider extends ServiceProvider
         // por su cuenta: las dos preguntan a User::puede().
         //   Vistas:      @puede('repuestos', 'editar') ... @else ... @endpuede
         //   Codigo PHP:  Gate::allows('permiso', ['repuestos', 'editar'])
-        Blade::if('puede', fn (string $funcionalidad, string $accion) => (bool) auth()->user()?->puede($funcionalidad, $accion));
+        // Guard web explicito: en una ruta del portal el guard por defecto es el
+        // del solicitante, que no es usuario del panel ni tiene permisos.
+        Blade::if('puede', fn (string $funcionalidad, string $accion) => (bool) auth('web')->user()?->puede($funcionalidad, $accion));
 
         Gate::define('permiso', fn (User $usuario, string $funcionalidad, string $accion) => $usuario->puede($funcionalidad, $accion));
     }

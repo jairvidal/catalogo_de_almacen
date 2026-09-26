@@ -490,8 +490,11 @@ a:focus-visible {
    "situacion". Los cinco se separan por tono Y por luminosidad, asi que
    siguen siendo distinguibles en blanco y negro y para un daltonico:
    claro/neutro -> ambar -> verde -> grafito solido -> oxido.
+   Por aprobar va antes que todo y se separa de Pendiente por la FORMA:
+   contorno punteado sobre blanco = "todavia no es del almacen".
    -------------------------------------------------------------------------- */
 
+.text-bg-estado-por-aprobar,
 .text-bg-estado-pendiente,
 .text-bg-estado-en-proceso,
 .text-bg-estado-listo,
@@ -499,6 +502,12 @@ a:focus-visible {
 .text-bg-estado-rechazada {
     border: 1px solid transparent;
     font-weight: 500;
+}
+
+.text-bg-estado-por-aprobar {
+    background-color: var(--ca-superficie) !important;
+    border: 1px dashed var(--ca-neutro-500);
+    color: var(--ca-neutro-700) !important;
 }
 
 .text-bg-estado-pendiente {
@@ -535,11 +544,19 @@ a:focus-visible {
 
 /* Mismos estados como color de texto/icono (tarjetas de metrica del panel). */
 .text-estado-todas { color: var(--ca-texto-terciario) !important; }
+.text-estado-por-aprobar { color: var(--ca-neutro-700) !important; }
 .text-estado-pendiente { color: var(--ca-neutro-600) !important; }
 .text-estado-en-proceso { color: var(--ca-atencion) !important; }
 .text-estado-listo { color: var(--ca-exito) !important; }
 .text-estado-entregada { color: var(--ca-neutro-800) !important; }
 .text-estado-rechazada { color: var(--ca-peligro) !important; }
+
+/* Portal del solicitante: la fila que espera su decision lleva un filete
+   ambar a la izquierda ("requiere su atencion"). No es el rojo de marca:
+   ese filete dice "esta aqui", no "falta algo". */
+.fila-por-aprobar > td:first-child {
+    box-shadow: inset var(--ca-filete) 0 0 var(--ca-atencion);
+}
 
 /* --------------------------------------------------------------------------
    Encabezado publico

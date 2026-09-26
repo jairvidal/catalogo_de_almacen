@@ -8,6 +8,7 @@ use App\Models\Rol;
 use App\Models\SolicitanteErp;
 use App\Models\Solicitud;
 use App\Models\User;
+use App\Services\AprobacionSolicitudService;
 use App\Services\SolicitudService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
@@ -257,6 +258,8 @@ class SolicitanteErpTest extends TestCase
         $persona = $this->solicitante();
         $this->enviar(['solicitante_erp_id' => $persona->id, 'nombre_completo' => 'Maria '.$this->marca]);
         $solicitud = Solicitud::orderByDesc('id')->firstOrFail();
+        // El panel solo ve lo que el solicitante aprobo.
+        $this->aprobar($solicitud, $persona);
 
         $this->get(route('solicitudes.consultar', ['numero' => $solicitud->numero, 'solicitante' => $persona->id]))
             ->assertSee('Nombre completo')
@@ -382,6 +385,15 @@ class SolicitanteErpTest extends TestCase
         return Solicitud::orderByDesc('id')->firstOrFail();
     }
 
+    /**
+     * La solicitud nace por_aprobar: el almacen solo la despacha despues de
+     * que el solicitante la aprueba.
+     */
+    private function aprobar(Solicitud $solicitud, SolicitanteErp $persona): Solicitud
+    {
+        return app(AprobacionSolicitudService::class)->aprobar($solicitud->id, $persona);
+    }
+
     public function test_consultar_con_numero_y_solicitante_correctos_muestra_la_solicitud(): void
     {
         $persona = $this->solicitante();
@@ -444,7 +456,7 @@ class SolicitanteErpTest extends TestCase
     public function test_el_aviso_sale_al_correo_vigente_del_erp(): void
     {
         $persona = $this->solicitante();
-        $solicitud = $this->crearDe($persona);
+        $solicitud = $this->aprobar($this->crearDe($persona), $persona);
 
         // El ERP corrige el correo despues de crear la solicitud.
         $persona->update(['col_correo' => 'corregido.'.uniqid().'@sidocsa.com']);
@@ -458,7 +470,7 @@ class SolicitanteErpTest extends TestCase
     public function test_sin_correo_en_el_erp_el_aviso_queda_registrado_como_fallido(): void
     {
         $persona = $this->solicitante(['col_correo' => null]);
-        $solicitud = $this->crearDe($persona);
+        $solicitud = $this->aprobar($this->crearDe($persona), $persona);
 
         app(SolicitudService::class)->marcarListo($solicitud->fresh(), $this->administrador(), []);
 

@@ -53,6 +53,24 @@
                         <strong>Solicitud recibida</strong><br>
                         <span class="text-secondary">{{ $solicitud->created_at->format('d/m/Y h:i a') }}</span>
                     </li>
+
+                    {{-- Paso de aprobacion: solo en las que pasaron por el. Las historicas
+                         (anteriores al flujo) no lo pintan. --}}
+                    @if ($solicitud->fue_denegada)
+                        <li class="cumplido">
+                            <strong>Denegada por {{ $solicitud->solicitante_nombre }}</strong><br>
+                            <span class="text-secondary">{{ $solicitud->denegada_at->format('d/m/Y h:i a') }}</span>
+                        </li>
+                    @elseif ($solicitud->esta_por_aprobar || $solicitud->aprobada_at)
+                        <li class="{{ $solicitud->aprobada_at ? 'cumplido' : '' }}">
+                            <strong>Aprobada por {{ $solicitud->solicitante_nombre }}</strong><br>
+                            <span class="text-secondary">
+                                {{ $solicitud->aprobada_at?->format('d/m/Y h:i a') ?? 'Esperando su aprobacion' }}
+                            </span>
+                        </li>
+                    @endif
+
+                    @unless ($solicitud->fue_denegada)
                     <li class="{{ $solicitud->fecha_en_proceso ? 'cumplido' : '' }}">
                         <strong>En preparacion en el almacen</strong><br>
                         <span class="text-secondary">
@@ -71,9 +89,27 @@
                             {{ $solicitud->fecha_entrega?->format('d/m/Y h:i a') ?? 'Pendiente' }}
                         </span>
                     </li>
+                    @endunless
                 </ul>
             </div>
         </div>
+
+        @if ($solicitud->esta_por_aprobar)
+            <div class="alert alert-light border mt-3 mb-0 small d-flex gap-2 align-items-start">
+                <i class="bi bi-person-check mt-1"></i>
+                <div>
+                    Esta solicitud espera la aprobacion de <strong>{{ $solicitud->solicitante_nombre }}</strong>.
+                    Cuando la apruebe pasara al almacen.
+                </div>
+            </div>
+        @endif
+
+        @if ($solicitud->fue_denegada)
+            <div class="alert alert-danger mt-3 mb-0 small">
+                <strong>Denegada por {{ $solicitud->solicitante_nombre }}.</strong>
+                {{ $solicitud->motivo_denegacion ? 'Motivo: '.$solicitud->motivo_denegacion : 'No se indico un motivo.' }}
+            </div>
+        @endif
 
         @if ($solicitud->observaciones)
             <div class="alert alert-light border mt-3 mb-0 small">

@@ -324,6 +324,13 @@
                             <strong>Recibida</strong><br>
                             <span class="text-secondary">{{ $solicitud->created_at->format('d/m/Y h:i a') }}</span>
                         </li>
+                        {{-- Las historicas no pasaron por la aprobacion: no se pinta. --}}
+                        @if ($solicitud->aprobada_at)
+                            <li class="cumplido">
+                                <strong>Aprobada por el solicitante</strong><br>
+                                <span class="text-secondary">{{ $solicitud->aprobada_at->format('d/m/Y h:i a') }}</span>
+                            </li>
+                        @endif
                         <li class="{{ $solicitud->fecha_en_proceso ? 'cumplido' : '' }}">
                             <strong>En proceso</strong><br>
                             <span class="text-secondary">{{ $solicitud->fecha_en_proceso?->format('d/m/Y h:i a') ?? 'Pendiente' }}</span>

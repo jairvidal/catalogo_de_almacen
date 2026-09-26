@@ -1,29 +1,31 @@
    {
-    "tipo_documento": "RQF",/*FIJO*/
-    "numero": "6",/*VARIABLE equivale a un consecutivo*/
-    "fecha": "20260421", /*VARIABLE equivale a la fecha del sistema*/
-    "estado": "0", /*FIJO*/
-    "tercero": "", /*FIJO vacio*/
-    "referencia": "607", /*VARIABLE equivale al campo 'cod_referencia' en el formulario*/
-    "numero_OC": "OT-45399", /*VARIABLE equivale al campo 'num_OC' en el formulario*/
-    "solicitante": "7416", /*VARIABLE equivale al campo 'cod_empleado' de quien inicia sesión */
-    "cargo": "",/*FIJO vacio*/
-    "entrega_en_dias": 1, /*VARIABLE equivale al campo 'dias_entrega' en el formulario*/
-    "fecha_entrega": "20260421",  /*VARIABLE equivale al campo 'fecha_entrega' del formulario*/
-    "notas": "Fracttal OT-45399 Juan Camilo Puertas Martínez",
-    "movimiento": [ /*array con los item o productos que estan en el carrito*/
+    "tipo_documento": "RQF",--> /*VALOR FIJO*/
+    "numero": "6", --> /*VALOR VARIABLE equivale a un consecutivo*/
+    "fecha": "20260421", --> /*VALOR VARIABLE equivale a la fecha del sistema*/
+    "estado": "0", /*VALOR FIJO*/
+    "tercero": "", /*VALOR FIJO vacio*/
+    "referencia": "607", /*VALOR VARIABLE equivale al campo 'cod_referencia' en la tabla 'solicitudes'*/
+    "numero_OC": "OT-45399", /*VALOR VARIABLE equivale al campo 'cod_OC' en la tabla 'solicitudes'*/
+    "solicitante": "7416", /*VALOR VARIABLE equivale al campo 'col_codigo_erp' en la tabla 'tbl_solicitante_erp' */
+    "cargo": "",/*VALOR FIJO vacio*/
+    "entrega_en_dias": 1, /*VALOR VARIABLE equivale al campo 'dias_entrega' en la tabla 'solicitudes'*/
+    "fecha_entrega": "20260421",  /*VALOR VARIABLE equivale al campo 'fecha_entrega' en la tabla 'solicitudes'*/
+    "notas": "notas varias", /*VALOR VARIABLE equivale al campo 'observaciones' en la tabla 'solicitudes' */
+    "movimiento": [ /*array con los item o repuestos que estan en el carrito*/
       {
-        "item_id": "25686", /*VARIABLE equivale al código de item o repuesto*/
-        "bodega_id": "P2ALM", /*FIJO*/
-        "motivo_id": "73", /*VARIABLE equivale al campo motivo*/
-        "cant": 1, /*VARIABLE equivale la cantidad de cada item existente en el carrito*/
-        "und": "UND", /*VARIABLE equivale a la unidad de medida del item o repuesto*/
-        "un": "001", /*FIJO*/
-        "centro_operacion": "015",/*FIJO*/
-        "centro_costo": "P91885", /*VARIABLE equivale al campo 'centro de costo' del formulario*/
-        "proyecto": "",/*FIJO vacio*/
-        "notas": "ESTO ES UN ITEM PARA PROBAR FRACTTAL NUEVA VERISION ERP", /*VARIABLE equivale al campo 'notas' del formulario*/
-        "descripcion": "ESTO ESTA INFORMACION NUEVA VERSION ERP"/*VARIABLE equivale al campo 'descripción item' del formulario*/
+        "item_id": "25686", /*VALOR VARIABLE equivale al campo 'repuesto_id' de la tabla 'solicitud_items'*/
+        "bodega_id": "P2ALM", /*VALOR FIJO*/
+        "motivo_id": "73", /*VALOR VARIABLE equivale al campo 'cod_motivo' tabla 'solicitud_items'*/
+        "cant": 1, /*VALOR VARIABLE equivale al campo 'cantidad' de la tabla 'solicitud_items'*/
+        "und": "UND", /*VALOR VARIABLE equivale al campo 'unidad_medida' de la tabla 'solicitud_items'*/
+        "un": "001", /*VALOR FIJO*/
+        "centro_operacion": "015",/*VALOR VARIABLE equivale al campo 'centro_operacion' de la tabla 'solicitud_items'*/
+        "centro_costo": "P91885", /*VALOR VARIABLE equivale al campo 'cod_centro_de_costo' en la tabla 'solicitud_items'*/
+        "proyecto": "",/*VALOR FIJO vacio*/
+        "notas": "ESTAS SON LAS NOTAS DEL ITE,", /*VALOR VARIABLE no definido*/
+        "descripcion": "ESTAS SON NOTAS ADICIONALES"/* VALOR VARIABLE no definido*/
       }
     ]
   }
+  
+  
