@@ -38,7 +38,7 @@
                     </p>
 
                     <div class="d-flex flex-wrap justify-content-center gap-2 no-imprimir">
-                        <a href="{{ route('solicitudes.consultar', array_filter(['numero' => $solicitud->numero, 'solicitante' => $solicitud->solicitante_erp_id])) }}"
+                        <a href="{{ route('solicitudes.consultar', array_filter(['numero' => $solicitud->numero, 'solicitante' => $solicitud->solicitanteErp?->id])) }}"
                            class="btn btn-marca">
                             <i class="bi bi-search me-1"></i>Consultar estado
                         </a>

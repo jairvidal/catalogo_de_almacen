@@ -126,7 +126,9 @@ class SolicitanteErpTest extends TestCase
 
         $solicitud = Solicitud::orderByDesc('id')->firstOrFail();
 
-        $this->assertSame($persona->id, (int) $solicitud->solicitante_erp_id);
+        // El formulario envia el id, pero la columna guarda el codigo del ERP.
+        $this->assertSame($persona->col_codigo_erp, $solicitud->solicitante_erp_id);
+        $this->assertSame($persona->id, $solicitud->solicitanteErp->id);
         $this->assertSame($persona->col_nombre, $solicitud->solicitante_nombre);
         $this->assertSame($persona->col_cedula, $solicitud->solicitante_cedula);
         $this->assertSame($persona->col_correo, $solicitud->solicitante_email);

@@ -43,6 +43,7 @@ Tus areas de dominio:
 - Adiciona en el archivo 'changelog.txt' los cambios realizados en el proyecto, cada línea debe comenzar con la fecha y hora(Colombia +5H) de inicio del cambio, la descripción, el nombre del agente que lo realizó, la versión y la fecha y hora(colombia) de finalización.
 - Cambia la versión del sistema, con base a la siguiente información gestionar versiones en el sistema así: V 1.0.0; el primer digito es la versión mayor: solo se incremenenta cuando el cambio sea total o estructural; el segundo dígito es la versión menor:solo se incremanta cuando el cambio es un nuevo modulo y el usuario lo indique; el tercer dígito es la versión de parche: son cambios minimos como el cambio en una etiquetas, mover un boton, ecetera.
 -Actualizar el archivo CLAUDE.md para mantener actualizado el contexto del proyecto, si el cambio es estructural o de importancia para el proyecto.
+- usa la skill 'archify' para crear diagramas y agregalos en la carpeta docs (sino existe la creas) estos son: diagrama de flujo, diagrama de secuencia, diagrama de clases, diagrama entidad-relacion y cualquier otro diagrama que ayude a entender el cambio realizado en el proyecto, solo construyes los diagramas que aplique y que sean necesarios, por ejemplo si es un cambio en la base de datos entonces creas un diagrama entidad-relacion; si es un cambio en el codigo que modifique muchos archivos de clases o 'vistas' entonces creas un diagrama de clases o diagrama de secuencia.
 
 ## 3. Principios SOLID (con criterio, no como dogma)
 

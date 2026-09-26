@@ -92,7 +92,7 @@ class AprobacionSolicitudTest extends TestCase
             'solicitante_email' => $persona->col_correo,
             'observaciones' => 'OT-'.$this->marca,
         ]);
-        $solicitud->forceFill(['solicitante_erp_id' => $persona->id, 'estado' => $estado] + $extra)->save();
+        $solicitud->forceFill(['solicitante_erp_id' => $persona->col_codigo_erp, 'estado' => $estado] + $extra)->save();
 
         SolicitudItem::create([
             'solicitud_id' => $solicitud->id,
@@ -484,6 +484,25 @@ class AprobacionSolicitudTest extends TestCase
             ->assertSee('Ahora espera la aprobacion de', false)
             ->assertSee('espera la aprobacion de', false)
             ->assertDontSee('El almacen ya la recibio');
+    }
+
+    /**
+     * La columna guarda el codigo del ERP, pero /consultar sigue recibiendo el
+     * id del solicitante (el mismo que devuelve el combo): el enlace de la
+     * confirmacion tiene que llevar el id, no el valor de la columna.
+     */
+    public function test_el_enlace_de_consulta_de_la_confirmacion_lleva_el_id_del_solicitante(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona);
+
+        $enlace = route('solicitudes.consultar', ['numero' => $solicitud->numero, 'solicitante' => $persona->id]);
+
+        $this->withSession(['solicitud_recien_creada' => $solicitud->numero])
+            ->get(route('solicitudes.confirmacion', $solicitud->numero))
+            ->assertOk()
+            ->assertSee(e($enlace), false)
+            ->assertDontSee(urlencode($persona->col_codigo_erp), false);
     }
 
     public function test_el_detalle_muestra_la_denegacion_y_su_motivo(): void

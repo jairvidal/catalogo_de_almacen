@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.11",
+  "version": "1.4.12",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -500,6 +500,21 @@
           ],
           "status": "done",
           "notas": "En la base de desarrollo siguen sin existir las FK solicitud_items.solicitud_id y solicitud_items.repuesto_id aunque la migracion original las crea; no se recrearon (fuera de alcance). Renombrar el modelo a SolicitudDetalle y la relacion items() queda como posible paso futuro. Cualquier consulta, vista, reporte o integracion externa que lea solicitud_items deja de funcionar al migrar."
+        },
+        {
+          "id": "SOL-07",
+          "name": "tbl_solicitudes.solicitante_erp_id guarda el codigo del ERP (col_codigo_erp) en vez del id: de bigint a nvarchar(30)",
+          "acceptance": [
+            "Se verifica antes que col_codigo_erp es nvarchar(30) con la misma collation; si no, la migracion aborta sin truncar",
+            "Migracion con columna temporal poblada cruzando id -> col_codigo_erp; indice y FK dependientes se leen del catalogo y se sueltan; se recrean tbl_solicitudes_solicitante_erp_id_index y la FK hacia col_codigo_erp",
+            "Si alguna solicitud apunta a un id sin solicitante, la migracion aborta antes de escribir con la lista de afectadas; las historicas nulas siguen nulas",
+            "down() hace el camino inverso (codigo -> id) y recrea la FK hacia id",
+            "La columna conserva el nombre solicitante_erp_id",
+            "Las relaciones Solicitud::solicitanteErp y SolicitanteErp::solicitudes usan col_codigo_erp; crearDesdeCarrito copia el codigo; scopeDelSolicitante compara por codigo e historicas por cedula",
+            "El formulario, el combo, StoreSolicitudRequest, solicitantes/buscar y el parametro solicitante de /consultar siguen usando el id; el enlace de la confirmacion lleva el id y no el valor de la columna"
+          ],
+          "status": "done",
+          "notas": "La columna se llama _id pero guarda un codigo: renombrarla (p. ej. solicitante_codigo_erp) queda como posible paso futuro. La columna nueva queda al final de la tabla (SQL Server no reordena). Un rollback deja creada la FK hacia id, que en la base local no existia antes. Cualquier reporte o integracion externa que cruce solicitante_erp_id con tbl_solicitante_erp.id deja de funcionar al migrar."
         }
       ]
     }

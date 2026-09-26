@@ -45,7 +45,7 @@ class AprobacionSolicitudService
 
         Log::info('Solicitud aprobada por el solicitante.', [
             'solicitud' => $solicitud->numero,
-            'solicitante_erp_id' => $aprobador->id,
+            'codigo_erp' => $aprobador->col_codigo_erp,
         ]);
 
         $solicitud->load('items');
@@ -74,7 +74,7 @@ class AprobacionSolicitudService
 
         Log::info('Solicitud denegada por el solicitante.', [
             'solicitud' => $solicitud->numero,
-            'solicitante_erp_id' => $aprobador->id,
+            'codigo_erp' => $aprobador->col_codigo_erp,
         ]);
 
         $solicitud->load('items');

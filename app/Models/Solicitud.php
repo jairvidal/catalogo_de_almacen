@@ -124,19 +124,21 @@ class Solicitud extends Model
      * snapshot (solicitante_nombre, solicitante_cedula...), no de aqui: el
      * historico no cambia si el ERP corrige a la persona.
      *
-     * `solicitante_erp_id` no es fillable: lo asigna SolicitudService despues
-     * de releer al solicitante.
+     * `solicitante_erp_id` guarda el CODIGO DEL ERP (col_codigo_erp), no el
+     * id, desde V 1.4.12: la columna conserva su nombre. No es fillable: lo
+     * asigna SolicitudService despues de releer al solicitante.
      */
     public function solicitanteErp(): BelongsTo
     {
-        return $this->belongsTo(SolicitanteErp::class, 'solicitante_erp_id');
+        return $this->belongsTo(SolicitanteErp::class, 'solicitante_erp_id', 'col_codigo_erp');
     }
 
     /**
      * Solicitudes que pertenecen a este solicitante: la regla de /consultar,
      * en un solo sitio.
      *
-     *  - Las nuevas se casan por la FK solicitante_erp_id.
+     *  - Las nuevas se casan por la FK solicitante_erp_id, que guarda el
+     *    codigo del ERP (col_codigo_erp).
      *  - Las HISTORICAS (sin FK, de cuando la persona digitaba sus datos) se
      *    casan por la cedula del ERP contra el snapshot solicitante_cedula.
      *    Un solicitante sin cedula en el ERP no hereda ninguna historica.
@@ -148,7 +150,7 @@ class Solicitud extends Model
         $cedula = trim((string) $solicitante->col_cedula);
 
         return $query->where(function (Builder $q) use ($solicitante, $cedula) {
-            $q->where('solicitante_erp_id', $solicitante->id);
+            $q->where('solicitante_erp_id', $solicitante->col_codigo_erp);
 
             if ($cedula !== '') {
                 $q->orWhere(fn (Builder $historica) => $historica

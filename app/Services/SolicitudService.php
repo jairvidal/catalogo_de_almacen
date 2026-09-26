@@ -82,7 +82,9 @@ class SolicitudService
                 'solicitante_telefono' => $solicitante->col_telefono,
                 'solicitante_area' => $solicitante->col_area,
             ]);
-            $solicitud->solicitante_erp_id = $solicitante->id;
+            // La columna guarda el CODIGO del ERP, no el id que valido el
+            // formulario: es la clave estable con la que el ERP lo identifica.
+            $solicitud->solicitante_erp_id = $solicitante->col_codigo_erp;
             // Nace esperando la aprobacion del solicitante del ERP: el almacen
             // no la ve hasta que la apruebe (AprobacionSolicitudService).
             $solicitud->estado = Solicitud::ESTADO_POR_APROBAR;

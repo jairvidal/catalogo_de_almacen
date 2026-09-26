@@ -78,7 +78,8 @@ class SolicitanteErp extends Model implements Authenticatable
 
     public function solicitudes(): HasMany
     {
-        return $this->hasMany(Solicitud::class, 'solicitante_erp_id');
+        // solicitante_erp_id guarda el codigo del ERP, no el id.
+        return $this->hasMany(Solicitud::class, 'solicitante_erp_id', 'col_codigo_erp');
     }
 
     /**
