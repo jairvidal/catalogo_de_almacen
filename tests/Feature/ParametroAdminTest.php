@@ -419,6 +419,33 @@ class ParametroAdminTest extends TestCase
             ->assertDontSee('id="col_valor_'.Parametro::INV_MANUAL.'"', false);
     }
 
+    public function test_el_listado_agrupa_todo_en_el_acordeon_configuracion_api_erp(): void
+    {
+        $parametro = $this->nuevoParametro();
+        $this->configurarSincronizacion(Parametro::INV_MANUAL);
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.parametros.index', ['q' => $parametro->col_nombre]))
+            ->assertOk()
+            ->assertSee('class="accordion accordion-flush acordeon-panel"', false)
+            ->assertSee('Configuracion API ERP')
+            // Arranca abierto y enlazado para lectores de pantalla.
+            ->assertSee('aria-expanded="true" aria-controls="seccion-api-erp"', false)
+            ->assertSee('aria-labelledby="seccion-api-erp-encabezado"', false)
+            ->getContent();
+
+        // Un parametro cualquiera (tambien uno que se cree en el futuro), la
+        // tarjeta de sincronizacion y el boton de alta quedan DENTRO del item.
+        $inicio = strpos($html, 'id="seccion-api-erp"');
+        $this->assertNotFalse($inicio);
+        $cuerpo = substr($html, $inicio);
+
+        $this->assertStringContainsString($parametro->col_nombre, $cuerpo);
+        $this->assertStringContainsString('data-sincronizar-stock', $cuerpo);
+        $this->assertStringContainsString('data-sincronizar-ultima', $cuerpo);
+        $this->assertStringContainsString(route('admin.parametros.create'), $cuerpo);
+    }
+
     public function test_el_boton_actualizar_solo_aparece_en_modo_manual(): void
     {
         $admin = $this->admin();

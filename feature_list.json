@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.17",
+  "version": "1.4.18",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -388,6 +388,21 @@
             "No quedan partials ni clases de CSS sin uso"
           ],
           "status": "done"
+        },
+        {
+          "id": "UI-04",
+          "name": "Agrupar todo el contenido de la pagina Parametros en un acordeon accordion-flush con el item 'Configuracion API ERP', reutilizable para parametros y secciones futuras",
+          "acceptance": [
+            "Todo el contenido de /admin/parametros (alta, sincronizacion, filtros, buscador, tabla y paginacion) queda dentro de div.accordion.accordion-flush",
+            "El item se titula 'Configuracion API ERP' y arranca abierto",
+            "Un parametro nuevo aparece dentro del item sin tocar codigo",
+            "Una seccion nueva se agrega con otro x-acordeon-item, sin copiar el marcado del acordeon",
+            "aria-expanded, aria-controls y aria-labelledby con ids unicos",
+            "El JS de sincronizacion, los filtros, la busqueda, la paginacion y los permisos siguen funcionando",
+            "El color del acordeon sale de los tokens --ca-* en app.css, sin hex en las vistas"
+          ],
+          "status": "done",
+          "notas": "Referencia visual: img-1.png (colapsado) e img0.png (abierto), el ejemplo Flush de la documentacion de Bootstrap. Pendiente de decidir con el usuario si algun dia el listado se parte en varias secciones y con que regla (prefijo del nombre, columna nueva, mapa en el modelo)."
         }
       ]
     },

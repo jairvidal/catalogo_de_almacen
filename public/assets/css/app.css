@@ -442,6 +442,46 @@ a:focus-visible {
     --bs-btn-disabled-border-color: var(--ca-borde);
 }
 
+/* Acordeon: se reasignan las variables de Bootstrap para que hable la paleta.
+   Abierto = fondo tenue de marca, texto de marca y el filete de "estas aqui"
+   a la izquierda, igual que el sidebar y la pestana activa. El chevron activo
+   de Bootstrap viene con el azul horneado dentro del SVG (no admite var()),
+   asi que se reutiliza el chevron neutro: el giro ya dice que esta abierto. */
+.accordion {
+    --bs-accordion-color: var(--ca-texto);
+    --bs-accordion-bg: var(--ca-superficie);
+    --bs-accordion-border-color: var(--ca-borde);
+    --bs-accordion-btn-color: var(--ca-texto);
+    --bs-accordion-btn-bg: var(--ca-superficie);
+    --bs-accordion-active-color: var(--ca-primario-texto);
+    --bs-accordion-active-bg: var(--ca-primario-claro);
+    --bs-accordion-btn-active-icon: var(--bs-accordion-btn-icon);
+    --bs-accordion-btn-focus-box-shadow: 0 0 0 .25rem var(--ca-foco-anillo);
+}
+
+.accordion-button {
+    font-weight: 600;
+}
+
+.accordion-button:not(.collapsed) {
+    box-shadow: inset var(--ca-filete) 0 0 var(--ca-primario),
+                inset 0 calc(-1 * var(--bs-accordion-border-width)) 0 var(--ca-borde);
+}
+
+/* Acordeon que agrupa una pagina entera del panel (Parametros): la superficie
+   y la sombra las pone el contenedor, y el cuerpo va sobre el lienzo para que
+   las tarjetas de dentro se lean como siempre. */
+.acordeon-panel {
+    background-color: var(--ca-superficie);
+    border-radius: var(--ca-radio-md);
+    box-shadow: var(--ca-sombra-2);
+    overflow: hidden;
+}
+
+.acordeon-panel .accordion-body {
+    background-color: var(--ca-fondo);
+}
+
 /* Avisos: fondo tenue + filete lateral. El de error nunca es rojo de marca. */
 .alert {
     border: 1px solid transparent;
