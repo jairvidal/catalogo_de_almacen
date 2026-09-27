@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.15",
+  "version": "1.4.17",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -556,6 +556,36 @@
           ],
           "status": "done",
           "notas": "En la base de desarrollo las columnas ya se habian renombrado a mano, por eso up() es un no-op alli; el renombre real se probo con rollback (cod_ -> viejos) y migrate (viejos -> cod_), y la cadena completa 100500-100700 con rollback --step=3 y migrate. formato.txt (borrador del usuario del payload RQF al ERP) no se toco: sus menciones de centro_operacion son del detalle."
+        },
+        {
+          "id": "SOL-11",
+          "name": "Tablas maestras del ERP tbl_centro_operacion, tbl_centro_de_costo y tbl_proyecto (solo esquema y modelos)",
+          "acceptance": [
+            "Migracion 2026_09_26_100800 con SQL nativo; aborta antes de crear nada si alguna tabla ya existe; down() las suelta",
+            "PK = codigo varchar(10) NOT NULL con nombre explicito pk_<tabla> (col_cod_centro_operacion, col_cod_centro_de_costo, col_cod_proyecto)",
+            "id bigint IDENTITY NOT NULL, no PK, con indice unico uq_<tabla>_id",
+            "col_nombre nvarchar(150) NOT NULL, col_activo bit NOT NULL default 1 con indice, created_at/updated_at datetime NULL",
+            "Modelos CentroOperacion, CentroDeCosto y Proyecto con primaryKey string, incrementing false, keyType string; id no fillable",
+            "Sin FK desde tbl_solicitudes ni tbl_solicitud_detalle y sin tocar sus longitudes",
+            "Prueba TablasMaestrasErpTest: esquema, PK, indice unico de id, default de col_activo, crear y leer por codigo, PK rechaza repetidos, id no fillable"
+          ],
+          "status": "done",
+          "notas": "Longitudes de las columnas de las solicitudes que no coinciden con varchar(10): cabecera cod_centro_operacion/cod_centro_de_costo varchar(50) y cod_proyecto varchar(100); detalle 5/10/100. Hay que igualarlas antes de crear FK. Pendiente: quien llena las tablas (importador del ERP al estilo ImportadorSolicitantesErp) y un eventual CRUD con su permiso. Prefijo SOL porque las tablas sirven a los codigos de las solicitudes."
+        },
+        {
+          "id": "SOL-12",
+          "name": "Tabla maestra del ERP tbl_motivo (solo esquema y modelo), mismo patron que SOL-11",
+          "acceptance": [
+            "Migracion 2026_09_26_100900 con SQL nativo; aborta antes de crear nada si la tabla ya existe; down() la suelta",
+            "PK col_cod_motivo varchar(5) NOT NULL con nombre pk_tbl_motivo",
+            "id bigint IDENTITY NOT NULL, no PK, con indice unico uq_tbl_motivo_id",
+            "col_nombre nvarchar(150) NOT NULL, col_activo bit NOT NULL default 1 con indice, created_at/updated_at datetime NULL",
+            "Modelo Motivo con primaryKey string, incrementing false, keyType string; id no fillable",
+            "Sin FK desde tbl_solicitud_detalle.cod_motivo (varchar(50) frente a varchar(5))",
+            "Casos de tbl_motivo agregados a TablasMaestrasErpTest"
+          ],
+          "status": "done",
+          "notas": "col_nombre: el usuario pidio varchar(5); se le advirtio y eligio nvarchar(150) como las hermanas. TablasMaestrasErpTest ya no usa codigos fijos porque las maestras tienen datos reales cargados por fuera de la aplicacion (tbl_centro_operacion 001 y 015)."
         }
       ]
     }
