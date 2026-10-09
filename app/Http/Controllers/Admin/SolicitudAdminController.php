@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Repuesto;
 use App\Models\Solicitud;
+use App\Models\SolicitudItem;
 use App\Services\SolicitudService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -124,7 +125,10 @@ class SolicitudAdminController extends Controller
     {
         $this->exigirQueLlegoAlAlmacen($solicitud);
 
-        $solicitud->load(['items.repuesto', 'atendidaPor']);
+        $solicitud->load(array_merge(
+            ['items.repuesto', 'atendidaPor', 'centroOperacion', 'centroDeCosto', 'proyecto'],
+            SolicitudItem::relacionesDeReferencia('items.')
+        ));
 
         return view('admin.solicitudes.show', ['solicitud' => $solicitud]);
     }

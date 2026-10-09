@@ -40,6 +40,9 @@ class Parametro extends Model
     /** Filtro por GRUPO que viaja a la API de inventario como `criterio_2`. */
     public const API_CRITERIO_2 = 'api.criterio_2';
 
+    /** Tercer nivel de filtro que viaja a la API de inventario como `criterio_3`. */
+    public const API_CRITERIO_3 = 'api.criterio_3';
+
     /** La tarea programada dispara la sincronizacion sola. */
     public const INV_AUTOMATICO = 'automatico';
 
@@ -88,7 +91,7 @@ class Parametro extends Model
     /**
      * Parametros cuyo valor es una LISTA separada por comas.
      *
-     * La API de inventario espera `criterio` y `criterio_2` como arreglos JSON
+     * La API de inventario espera `criterio`, `criterio_2` y `criterio_3` como arreglos JSON
      * (varios grupos o subgrupos a la vez), y en tbl_parametro un valor es una
      * sola cadena: la coma es el separador acordado. El formulario lo dice en la
      * ayuda del campo y Parametro::lista() es quien lo parte.
@@ -98,6 +101,7 @@ class Parametro extends Model
     public const LISTAS = [
         self::API_CRITERIO,
         self::API_CRITERIO_2,
+        self::API_CRITERIO_3,
     ];
 
     /**
@@ -113,6 +117,7 @@ class Parametro extends Model
     public const LISTAS_ENTERAS = [
         self::API_CRITERIO,
         self::API_CRITERIO_2,
+        self::API_CRITERIO_3,
     ];
 
     /**

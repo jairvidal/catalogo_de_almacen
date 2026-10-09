@@ -1,0 +1,213 @@
+{
+    "schema_version": 1,
+    "diagram_type": "sequence",
+    "meta": {
+        "title": "Busqueda de repuestos por imagen (V 1.4.24)",
+        "viewBox": [
+            1060,
+            610
+        ],
+        "column_fit": "spread",
+        "quality_profile": "showcase"
+    },
+    "participants": [
+        {
+            "id": "usuario",
+            "type": "external",
+            "label": "Usuario",
+            "sublabel": "camara o archivo"
+        },
+        {
+            "id": "navegador",
+            "type": "frontend",
+            "label": "Catalogo",
+            "sublabel": "app.js"
+        },
+        {
+            "id": "controlador",
+            "type": "backend",
+            "label": "Controlador",
+            "sublabel": "BusquedaImagen"
+        },
+        {
+            "id": "buscador",
+            "type": "backend",
+            "label": "Buscador",
+            "sublabel": "RepuestosPorImagen"
+        },
+        {
+            "id": "indice",
+            "type": "database",
+            "label": "tbl_imagen_indice",
+            "sublabel": "descripciones"
+        },
+        {
+            "id": "claude",
+            "type": "external",
+            "label": "API Claude",
+            "sublabel": "/v1/messages"
+        },
+        {
+            "id": "bitacora",
+            "type": "database",
+            "label": "Bitacora",
+            "sublabel": "claude-costos.txt"
+        }
+    ],
+    "segments": [
+        {
+            "from": 150,
+            "to": 258,
+            "label": "Envio"
+        },
+        {
+            "from": 266,
+            "to": 432,
+            "label": "Dos pasos con Claude"
+        },
+        {
+            "from": 440,
+            "to": 540,
+            "label": "Resultado"
+        }
+    ],
+    "messages": [
+        {
+            "id": "foto",
+            "from": "usuario",
+            "to": "navegador",
+            "y": 170,
+            "label": "toma o elige foto",
+            "variant": "default"
+        },
+        {
+            "id": "enviar",
+            "from": "navegador",
+            "to": "controlador",
+            "y": 210,
+            "label": "POST imagen reducida",
+            "variant": "emphasis"
+        },
+        {
+            "id": "validar",
+            "from": "controlador",
+            "to": "buscador",
+            "y": 245,
+            "label": "throttle + image|mimes",
+            "variant": "security"
+        },
+        {
+            "id": "leer",
+            "from": "buscador",
+            "to": "indice",
+            "y": 280,
+            "label": "entradas con repuesto activo",
+            "variant": "dashed"
+        },
+        {
+            "id": "paso1",
+            "from": "buscador",
+            "to": "claude",
+            "y": 320,
+            "label": "foto + indice en cache",
+            "variant": "emphasis"
+        },
+        {
+            "id": "candidatos",
+            "from": "claude",
+            "to": "buscador",
+            "y": 350,
+            "label": "candidatos JSON",
+            "variant": "return"
+        },
+        {
+            "id": "paso2",
+            "from": "buscador",
+            "to": "claude",
+            "y": 385,
+            "label": "foto + fotos reales top N",
+            "variant": "emphasis"
+        },
+        {
+            "id": "porcentajes",
+            "from": "claude",
+            "to": "buscador",
+            "y": 415,
+            "label": "porcentajes JSON",
+            "variant": "return"
+        },
+        {
+            "id": "costo",
+            "from": "buscador",
+            "to": "bitacora",
+            "y": 460,
+            "label": "tokens + costo USD",
+            "variant": "dashed"
+        },
+        {
+            "id": "filtrar",
+            "from": "buscador",
+            "to": "controlador",
+            "y": 492,
+            "label": "solo >= umbral 80",
+            "variant": "return"
+        },
+        {
+            "id": "html",
+            "from": "controlador",
+            "to": "navegador",
+            "y": 524,
+            "label": "JSON con tarjetas",
+            "variant": "return"
+        }
+    ],
+    "activations": [
+        {
+            "participant": "navegador",
+            "from": 165,
+            "to": 530,
+            "type": "frontend"
+        },
+        {
+            "participant": "controlador",
+            "from": 205,
+            "to": 530,
+            "type": "backend"
+        },
+        {
+            "participant": "buscador",
+            "from": 240,
+            "to": 498,
+            "type": "backend"
+        }
+    ],
+    "cards": [
+        {
+            "dot": "emerald",
+            "title": "Aditiva",
+            "items": [
+                "El listado solo se oculta",
+                "Quitar filtro lo devuelve intacto",
+                "Agregar al pedido sigue igual"
+            ]
+        },
+        {
+            "dot": "rose",
+            "title": "Freno de gasto",
+            "items": [
+                "Limite por IP y tope global diario",
+                "La imagen no se guarda",
+                "La clave solo vive en el .env"
+            ]
+        },
+        {
+            "dot": "orange",
+            "title": "Indice previo",
+            "items": [
+                "repuestos:indexar-imagenes",
+                "Incremental por sha256",
+                "Correr --simular primero"
+            ]
+        }
+    ]
+}

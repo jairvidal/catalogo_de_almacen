@@ -20,14 +20,18 @@ class SolicitudColumnasReferenciaTest extends TestCase
 {
     use DatabaseTransactions;
 
-    /** nombre => [tipo, largo en caracteres o null]. */
+    /**
+     * nombre => [tipo, largo en caracteres o null]. Los tres codigos de
+     * maestra miden lo que la clave de su maestra desde 2026_09_27_100000
+     * (antes 50/50/100), por la FK.
+     */
     private const ESPERADAS = [
         'cod_referencia' => ['varchar', 50],
         'cod_OC' => ['varchar', 50],
         'dias_entrega' => ['int', null],
-        'cod_centro_operacion' => ['varchar', 50],
-        'cod_centro_de_costo' => ['varchar', 50],
-        'cod_proyecto' => ['varchar', 100],
+        'cod_centro_operacion' => ['varchar', 10],
+        'cod_centro_de_costo' => ['varchar', 10],
+        'cod_proyecto' => ['varchar', 10],
         'enviado' => ['varchar', 1000],
     ];
 

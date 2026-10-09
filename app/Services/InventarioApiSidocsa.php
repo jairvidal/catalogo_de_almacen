@@ -256,9 +256,9 @@ class InventarioApiSidocsa
      * consola y el boton del panel pasan los dos por aqui.
      *
      * `cant` y `page` van como numeros JSON; `id_cia`, `id_bod` y `tipo_inv`
-     * como cadenas. `criterio` (SUBGRUPO) y `criterio_2` (GRUPO) son arreglos
-     * de IDs numericos del ERP y viajan SIEMPRE, aunque queden vacios: el
-     * endpoint espera la llave.
+     * como cadenas. `criterio` (SUBGRUPO), `criterio_2` (GRUPO) y `criterio_3`
+     * (tercer nivel) son arreglos de IDs numericos del ERP y viajan SIEMPRE,
+     * aunque queden vacios: el endpoint espera la llave.
      */
     private function pedirInventario(int $pagina, string $token): Response
     {
@@ -273,6 +273,7 @@ class InventarioApiSidocsa
                     'tipo_inv' => 'INV1455',
                     'criterio' => Parametro::listaEnteros(Parametro::API_CRITERIO),
                     'criterio_2' => Parametro::listaEnteros(Parametro::API_CRITERIO_2),
+                    'criterio_3' => Parametro::listaEnteros(Parametro::API_CRITERIO_3),
                     'existencias' => 1,
                 ]);
         } catch (ConnectionException $e) {

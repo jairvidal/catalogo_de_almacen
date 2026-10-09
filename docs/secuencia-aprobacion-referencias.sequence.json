@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Aprobacion con columnas de referencia (V 1.4.19)",
+    "viewBox": [1060, 580],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "aprobador", "type": "external", "label": "Aprobador", "sublabel": "portal solicitante" },
+    { "id": "vista", "type": "frontend", "label": "Detalle", "sublabel": "combo-maestra + app.js" },
+    { "id": "request", "type": "security", "label": "FormRequest", "sublabel": "AprobarSolicitud" },
+    { "id": "controlador", "type": "backend", "label": "Controlador", "sublabel": "SolicitudPortal" },
+    { "id": "servicio", "type": "backend", "label": "Servicio", "sublabel": "AprobacionSolicitud" },
+    { "id": "maestras", "type": "database", "label": "Maestras ERP", "sublabel": "centros y proyecto" },
+    { "id": "solicitudes", "type": "database", "label": "tbl_solicitudes", "sublabel": "referencias" }
+  ],
+  "segments": [
+    { "from": 150, "to": 250, "label": "Formulario" },
+    { "from": 260, "to": 445, "label": "Validacion y decision" },
+    { "from": 450, "to": 520, "label": "Respuesta" }
+  ],
+  "messages": [
+    { "id": "abrir", "from": "aprobador", "to": "vista", "y": 170, "label": "abre por_aprobar", "variant": "default" },
+    { "id": "opciones", "from": "vista", "to": "maestras", "y": 200, "label": "opcionesActivas()", "variant": "dashed" },
+    { "id": "enviar", "from": "aprobador", "to": "request", "y": 240, "label": "POST aprobar + 6 campos", "variant": "emphasis" },
+    { "id": "existe", "from": "request", "to": "maestras", "y": 275, "label": "Rule::exists activa", "variant": "security" },
+    { "id": "referencias", "from": "request", "to": "controlador", "y": 310, "label": "referencias() cod_OC", "variant": "default" },
+    { "id": "aprobar", "from": "controlador", "to": "servicio", "y": 340, "label": "aprobar(id, aprobador, refs)", "variant": "emphasis" },
+    { "id": "bloqueo", "from": "servicio", "to": "solicitudes", "y": 370, "label": "lockForUpdate + por_aprobar", "variant": "security" },
+    { "id": "relectura", "from": "servicio", "to": "maestras", "y": 400, "label": "activaPorCodigo()", "variant": "security" },
+    { "id": "guardar", "from": "servicio", "to": "solicitudes", "y": 430, "label": "forceFill pendiente + refs", "variant": "emphasis" },
+    { "id": "listo", "from": "servicio", "to": "controlador", "y": 460, "label": "Solicitud", "variant": "return" },
+    { "id": "redirigir", "from": "controlador", "to": "aprobador", "y": 495, "label": "redirect + exito", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "vista", "from": 165, "to": 206, "type": "frontend" },
+    { "participant": "request", "from": 235, "to": 316, "type": "security" },
+    { "participant": "controlador", "from": 305, "to": 500, "type": "backend" },
+    { "participant": "servicio", "from": 335, "to": 466, "type": "backend" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Solo al aprobar",
+      "items": [
+        "Los cuadros usan form=form-aprobar",
+        "Denegar no escribe las referencias",
+        "Enter no aprueba: boton por defecto deshabilitado"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Dos barreras",
+      "items": [
+        "Rule::exists contra la maestra activa",
+        "Relectura dentro de la transaccion",
+        "Ajena: 404; ya decidida: DecisionSolicitudException"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Solo lectura",
+      "items": [
+        "referenciasParaMostrar() sin renglones vacios",
+        "Portal decidida y panel admin",
+        "No en confirmacion ni /consultar"
+      ]
+    }
+  ]
+}

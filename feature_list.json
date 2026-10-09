@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.18",
+  "version": "1.4.24",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -340,6 +340,33 @@
             "fecha_actual_ERP no es fillable: la escribe unicamente la sincronizacion"
           ],
           "status": "done"
+        },
+        {
+          "id": "CAT-15",
+          "name": "Agregar criterio_3 al cuerpo de la consulta a la API de inventario, configurado por el parametro api.criterio_3.",
+          "acceptance": [
+            "criterio_3 viaja en POST /inventario/consultar justo despues de criterio_2, como arreglo JSON de IDs numericos",
+            "Viaja siempre, aunque quede vacio (parametro inexistente, inactivo o sin valor)",
+            "api.criterio_3 entra en Parametro::LISTAS y LISTAS_ENTERAS: trim por elemento, descarte de lo no numerico con Log::warning, validacion en ParametroRequest y ayuda del formulario sin tocar esos archivos",
+            "ParametroSeeder siembra api.criterio_3 con col_sistema = true y valor 9601..9621",
+            "criterio no se quita del cuerpo; el campo cri3 de la respuesta no se lee",
+            "Sin cambios en URL, token, paginacion ni en la lectura de la respuesta"
+          ],
+          "status": "done",
+          "notas": "V 1.4.23. El seeder NO se ejecuto: en la base de desarrollo existe una fila manual api.criterio3 (sin guion bajo, col_sistema 0, valor vacio) y sembrar crearia api.criterio_3 al lado; ademas refrescaria las descripciones desactualizadas de api.criterio y api.criterio_2. Mientras api.criterio_3 no exista, criterio_3 viaja como []."
+        },
+        {
+          "id": "CAT-16",
+          "name": "Busqueda de repuestos por imagen (camara o archivo) con la API de Claude, mostrando solo coincidencias de al menos 80%",
+          "acceptance": [
+            "Dos botones junto al cuadro de busqueda del catalogo: camara (abre la camara en el celular) y subir foto (JPG, JPEG o PNG)",
+            "La imagen se compara con las fotos de public/img usando la API de Claude y solo se muestran los repuestos con coincidencia >= umbral (80 por defecto)",
+            "API key, modelo, umbral, tiempos, tamanos y precios en el .env",
+            "Cada consulta a la API deja su costo en storage/logs/claude-costos.txt",
+            "No cambia el flujo actual del catalogo ni del resto de la aplicacion"
+          ],
+          "status": "done",
+          "notas": "V 1.4.24. Requiere ANTHROPIC_API_KEY y correr una vez php artisan repuestos:indexar-imagenes (incremental). No se ejecuto el indexado real ni se probo contra la API real: todo verificado con Http::fake(). Sin verificacion visual en navegador ni en celular. El porcentaje es un juicio del modelo, no una medida matematica."
         }
       ]
     },
@@ -601,6 +628,67 @@
           ],
           "status": "done",
           "notas": "col_nombre: el usuario pidio varchar(5); se le advirtio y eligio nvarchar(150) como las hermanas. TablasMaestrasErpTest ya no usa codigos fijos porque las maestras tienen datos reales cargados por fuera de la aplicacion (tbl_centro_operacion 001 y 015)."
+        },
+        {
+          "id": "SOL-13",
+          "name": "Aprobar solicitud (portal del solicitante): diligenciar en el encabezado cod_referencia, cod_OC, dias_entrega, centro de operacion, centro de costo y proyecto",
+          "acceptance": [
+            "Bajo los datos del solicitante: cajas de texto cod_referencia, cod_oc y Dias de entrega (inputmode numeric)",
+            "Columna central entre SOLICITANTE y SEGUIMIENTO: listas con busqueda de Centro de operacion, Centro de costo y Proyecto, cargadas de tbl_centro_operacion, tbl_centro_de_costo y tbl_proyecto (solo activas, por codigo, 'codigo - nombre'); sin JavaScript degradan a un select",
+            "Editables solo mientras esta por_aprobar; se guardan al pulsar Aprobar (atributo form); Denegar no las guarda",
+            "Todas opcionales; AprobarSolicitudRequest valida largos, dias_entrega entero 0..3650 y los codigos contra su maestra activa; errores bajo cada campo con old()",
+            "Escritas por AprobacionSolicitudService dentro de la misma transaccion y lockForUpdate, con relectura de la maestra; siguen sin ser fillable; 404 para ajenas y DecisionSolicitudException si ya no esta por aprobar",
+            "Solo lectura en el portal ya decidida y en admin/solicitudes/show, sin renglones vacios; no se muestran en la confirmacion ni en /consultar",
+            "Enter en un cuadro no aprueba la solicitud",
+            "Prueba AprobacionReferenciasTest"
+          ],
+          "status": "done",
+          "notas": "El formulario envia cod_oc y la columna es cod_OC (traduce AprobarSolicitudRequest::referencias()). Los inputs de maestra se llaman como sus columnas (cod_centro_operacion...). Trait EsMaestraErp comun a las tres maestras. Pendiente con el usuario: significado de negocio de cod_referencia/cod_OC, unidad de dias_entrega (se muestra sin unidad) y si las referencias deben ser obligatorias. enviado sigue sin uso."
+        },
+        {
+          "id": "SOL-14",
+          "name": "Aprobar solicitud (portal del solicitante): diligenciar por item en la tabla REPUESTOS motivo, bodega, unidad de medida, centro de operacion, centro de costo, cantidad, unidad de negocio, proyecto, notas y descripcion",
+          "acceptance": [
+            "A la derecha de CANTIDAD, por renglon, listas con busqueda de Motivo, Bodega, Und. medida, Centro de op. y Centro de costo (tbl_motivo, tbl_bodega, tbl_unidad_medida, tbl_centro_operacion, tbl_centro_de_costo; solo activas); sin JavaScript degradan a un select",
+            "Bloque 'Mas datos' por item: cantidad (decimal, prellenada con la solicitada, acepta coma), unidad de negocio '001' de solo lectura, proyecto (lista), notas y descripcion (area de texto)",
+            "Solo mientras esta por_aprobar; viajan con Aprobar como items[{id del detalle}][campo]; Denegar no los guarda",
+            "Todo opcional; codigos contra su maestra activa y con largo = el menor entre la columna del detalle y la clave de la maestra; cantidad > 0 con hasta 3 decimales; errores bajo cada campo con old()",
+            "Escritos por AprobacionSolicitudService en la misma transaccion y lockForUpdate de la cabecera, con relectura de las maestras; solo ids de detalle de esa solicitud; cod_unidad_negocio impuesto a '001' por el servidor",
+            "Solo lectura en el portal ya decidida y en admin/solicitudes/show, sin renglones vacios; no se muestran en la confirmacion ni en /consultar",
+            "Modelos Bodega y UnidadMedida ajustados a las tablas creadas por fuera, sin migraciones",
+            "Prueba AprobacionItemsTest"
+          ],
+          "status": "done",
+          "notas": "tbl_bodega y tbl_unidad_medida existian sin migracion ni modelo; estan vacias (0 filas) al 2026-09-27, asi que hoy esas dos listas salen 'Sin opciones'. Prellenado de centros y proyecto desde la cabecera (render y JS para items no tocados). Pendiente con el usuario: relacion de 'cantidad' con cantidad_solicitada/cantidad_entregada, si la unidad de negocio puede ser otra que '001', significado de notas_item/descripcion_item frente a nota/nombre, y FK/igualar longitudes con las maestras."
+        },
+        {
+          "id": "SOL-15",
+          "name": "Llaves foraneas de las columnas de referencia de tbl_solicitudes y tbl_solicitud_detalle hacia las maestras del ERP, igualando antes los largos",
+          "acceptance": [
+            "Cabecera: cod_centro_operacion, cod_centro_de_costo y cod_proyecto con FK a tbl_centro_operacion, tbl_centro_de_costo y tbl_proyecto",
+            "Detalle: cod_bodega, cod_motivo, cod_unidad_medida, cod_centro_operacion, cod_centro_de_costo y cod_proyecto con FK a tbl_bodega, tbl_motivo, tbl_unidad_medida, tbl_centro_operacion, tbl_centro_de_costo y tbl_proyecto",
+            "Cada columna queda con el mismo tipo, largo y collation que la clave de su maestra (leidos del catalogo) y sigue admitiendo NULL",
+            "Nombres explicitos fk_<tabla>_<columna> e indice no agrupado ix_<tabla>_<columna>; ON DELETE / ON UPDATE NO ACTION",
+            "Migracion nueva en SQL nativo que aborta antes de escribir si hay valores que no caben, huerfanos, nombres ocupados o dependencias ajenas sobre la columna; down() restaura los largos originales",
+            "Validacion y listas del item sin el recorte por 'el menor de los dos largos'; exists contra maestra activa se mantiene",
+            "Pruebas SolicitudFkMaestrasErpTest, SolicitudColumnasReferenciaTest y SolicitudDetalleColumnasReferenciaTest"
+          ],
+          "status": "done",
+          "notas": "Decisiones del usuario (2026-09-27): tbl_solicitud_detalle.cantidad es la cantidad que solicita quien hace la requisicion (se prellena con cantidad_solicitada y el aprobador la ajusta; cantidad_solicitada/cantidad_entregada siguen siendo las del flujo); cod_unidad_negocio fijo en '001' sin maestra ni FK por ahora. Hallazgo: tbl_bodega.col_cod_bod ya era varchar(10) en la base (no varchar(5) como se habia documentado), asi que cod_bodega se quedo en varchar(10). Migracion ejecutada en desarrollo, con rollback y nueva ejecucion verificados; 0 filas con valores en esas columnas."
+        },
+        {
+          "id": "SOL-16",
+          "name": "Campos por item de la aprobacion en el mismo renglon de la tabla REPUESTOS, sin la fila 'Mas datos'",
+          "acceptance": [
+            "Cantidad, Unidad de negocio, Proyecto, Notas y Descripcion son columnas del renglon del item, despues de Motivo, Bodega, Und. medida, Centro de op. y Centro de costo",
+            "Se retira el <details class=\"item-mas-datos\"> y su CSS",
+            "Encabezados distinguibles: 'Cant. solicitada' (solo lectura) y 'Cant. aprobada' (editable)",
+            "Se conservan names, form=\"form-aprobar\", prellenado, herencia de la cabecera, old(), errores por campo, unidad de negocio 001 de solo lectura sin name y etiquetas ocultas por campo",
+            "Anchos minimos para que la tabla se desplace dentro de .table-responsive",
+            "Prueba AprobacionItemsTest ajustada"
+          ],
+          "status": "done",
+          "notas": "V 1.4.22. Se retiro SolicitudItem::COLUMNAS_EN_TABLA: la tabla recorre REFERENCIAS_APROBACION. Sin verificacion visual en navegador."
         }
       ]
     }

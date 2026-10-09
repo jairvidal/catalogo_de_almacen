@@ -18,16 +18,20 @@ class SolicitudDetalleColumnasReferenciaTest extends TestCase
 {
     use DatabaseTransactions;
 
-    /** nombre => [tipo, largo en caracteres o precision, escala o null]. */
+    /**
+     * nombre => [tipo, largo en caracteres o precision, escala o null]. Los
+     * codigos de maestra miden lo que la clave de su maestra desde
+     * 2026_09_27_100000 (motivo era 50, centro de operacion 5, proyecto 100).
+     */
     private const ESPERADAS = [
         'cod_bodega' => ['varchar', 10, null],
-        'cod_motivo' => ['varchar', 50, null],
+        'cod_motivo' => ['varchar', 5, null],
         'cantidad' => ['decimal', 12, 3],
         'cod_unidad_medida' => ['varchar', 5, null],
         'cod_unidad_negocio' => ['varchar', 5, null],
-        'cod_centro_operacion' => ['varchar', 5, null],
+        'cod_centro_operacion' => ['varchar', 10, null],
         'cod_centro_de_costo' => ['varchar', 10, null],
-        'cod_proyecto' => ['varchar', 100, null],
+        'cod_proyecto' => ['varchar', 10, null],
         'notas_item' => ['varchar', 500, null],
         'descripcion_item' => ['varchar', 500, null],
     ];

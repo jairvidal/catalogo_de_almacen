@@ -68,7 +68,7 @@ class ResultadoSincronizacionStock
 
         if ($this->recibidos === 0) {
             return $prefijo.'El ERP no devolvio ningun registro para la bodega y los criterios configurados, '
-                .'asi que no habia nada que actualizar. Revise api.id_bod, api.criterio y api.criterio_2.';
+                .'asi que no habia nada que actualizar. Revise api.id_bod, api.criterio, api.criterio_2 y api.criterio_3.';
         }
 
         if ($this->emparejados() === 0) {

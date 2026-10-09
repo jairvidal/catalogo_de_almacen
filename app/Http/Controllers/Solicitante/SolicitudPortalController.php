@@ -4,8 +4,13 @@ namespace App\Http\Controllers\Solicitante;
 
 use App\Exceptions\DecisionSolicitudException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AprobarSolicitudRequest;
+use App\Models\CentroDeCosto;
+use App\Models\CentroOperacion;
+use App\Models\Proyecto;
 use App\Models\SolicitanteErp;
 use App\Models\Solicitud;
+use App\Models\SolicitudItem;
 use App\Services\AprobacionSolicitudService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,20 +59,66 @@ class SolicitudPortalController extends Controller
 
     public function show(int $id): View
     {
-        $solicitud = Solicitud::with('items')
+        $solicitud = Solicitud::query()
             ->whereKey($id)
             ->delSolicitante($this->solicitante())
             ->firstOrFail();
 
-        return view('solicitante.solicitudes.show', ['solicitud' => $solicitud]);
+        // Las listas solo hacen falta mientras se puede aprobar; despues las
+        // referencias (cabecera e items) se muestran en solo lectura, y solo
+        // entonces se precargan las maestras de los items.
+        if ($solicitud->esta_por_aprobar) {
+            $solicitud->load('items');
+            [$opciones, $opcionesItem] = $this->opcionesDeAprobacion();
+        } else {
+            $solicitud->load(array_merge(
+                ['items', 'centroOperacion', 'centroDeCosto', 'proyecto'],
+                SolicitudItem::relacionesDeReferencia('items.')
+            ));
+            [$opciones, $opcionesItem] = [[], []];
+        }
+
+        return view('solicitante.solicitudes.show', [
+            'solicitud' => $solicitud,
+            'opcionesReferencia' => $opciones,
+            'opcionesItem' => $opcionesItem,
+        ]);
     }
 
-    public function aprobar(int $id, AprobacionSolicitudService $servicio): RedirectResponse
+    /**
+     * Opciones de las listas de la cabecera y de los items, con UNA consulta
+     * por maestra: las tres de la cabecera se reutilizan para los items (las
+     * columnas del detalle tienen el largo de la clave de su maestra, asi que
+     * todo codigo cabe) y todos los renglones comparten el mismo arreglo.
+     *
+     * @return array{0: array<string, array<string, string>>, 1: array<string, array<string, string>>}
+     */
+    private function opcionesDeAprobacion(): array
+    {
+        $cabecera = [
+            'cod_centro_operacion' => CentroOperacion::opcionesActivas(),
+            'cod_centro_de_costo' => CentroDeCosto::opcionesActivas(),
+            'cod_proyecto' => Proyecto::opcionesActivas(),
+        ];
+
+        $porItem = [];
+
+        foreach (SolicitudItem::REFERENCIAS_DE_MAESTRA as $columna => $relacion) {
+            $porItem[$columna] = $cabecera[$columna]
+                ?? (new SolicitudItem)->{$relacion}()->getRelated()::opcionesActivas();
+        }
+
+        return [$cabecera, $porItem];
+    }
+
+    public function aprobar(AprobarSolicitudRequest $request, int $id, AprobacionSolicitudService $servicio): RedirectResponse
     {
         try {
-            $solicitud = $servicio->aprobar($id, $this->solicitante());
+            $solicitud = $servicio->aprobar($id, $this->solicitante(), $request->referencias(), $request->items());
         } catch (DecisionSolicitudException $e) {
-            return back()->with('error', $e->getMessage());
+            // withInput: si un codigo dejo de estar disponible, la persona no
+            // tiene que volver a digitar lo demas.
+            return back()->withInput()->with('error', $e->getMessage());
         }
 
         return redirect()

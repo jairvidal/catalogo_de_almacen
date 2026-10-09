@@ -381,6 +381,49 @@ class ParametroAdminTest extends TestCase
         $this->assertSame([], Parametro::listaEnteros(Parametro::API_CRITERIO_2));
     }
 
+    /**
+     * api.criterio_3 entra por el mismo mecanismo (LISTAS_ENTERAS): la misma
+     * regla del servidor y la misma ayuda del formulario, sin tocar ni
+     * ParametroRequest ni la vista.
+     */
+    public function test_criterio_3_solo_acepta_ids_numericos_y_el_formulario_lo_dice(): void
+    {
+        $this->configurarSincronizacion(Parametro::INV_AUTOMATICO);
+        $criterio = Parametro::firstOrNew(['col_nombre' => Parametro::API_CRITERIO_3]);
+        $criterio->col_valor = '9601';
+        $criterio->col_estado = Parametro::ESTADO_ACTIVO;
+        $criterio->col_sistema = true;
+        $criterio->save();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->put(route('admin.parametros.update', $criterio), [
+                'col_nombre' => $criterio->col_nombre,
+                'col_valor' => '9601,TEXTO',
+                'col_estado' => Parametro::ESTADO_ACTIVO,
+                'col_descripcion' => $criterio->col_descripcion,
+            ])
+            ->assertSessionHasErrors('col_valor');
+
+        $this->assertSame('9601', $criterio->refresh()->col_valor);
+
+        $this->actingAs($admin)
+            ->put(route('admin.parametros.update', $criterio), [
+                'col_nombre' => $criterio->col_nombre,
+                'col_valor' => '9601, 9621',
+                'col_estado' => Parametro::ESTADO_ACTIVO,
+                'col_descripcion' => $criterio->col_descripcion,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([9601, 9621], Parametro::listaEnteros(Parametro::API_CRITERIO_3));
+
+        $this->actingAs($admin)
+            ->get(route('admin.parametros.edit', $criterio))
+            ->assertOk()
+            ->assertSee('IDs numericos del ERP separados por coma');
+    }
+
     public function test_el_formulario_dice_que_los_criterios_son_ids_numericos(): void
     {
         $this->configurarSincronizacion(Parametro::INV_AUTOMATICO);

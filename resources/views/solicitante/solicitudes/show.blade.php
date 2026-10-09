@@ -15,7 +15,15 @@
 
             {{-- Mismo detalle que la consulta publica: cedula y correo enmascarados,
                  items del snapshot con codigo, nombre, foto y cantidad. --}}
-            @include('solicitudes.partials.detalle', ['solicitud' => $solicitud])
+            {{-- Las referencias del encabezado (cod_referencia, cod_OC, dias,
+                 centros y proyecto) se diligencian mientras esta por aprobar y
+                 despues se muestran en solo lectura. --}}
+            @include('solicitudes.partials.detalle', [
+                'solicitud' => $solicitud,
+                'referencias' => $solicitud->esta_por_aprobar ? 'edicion' : 'lectura',
+                'opcionesReferencia' => $opcionesReferencia,
+                'opcionesItem' => $opcionesItem,
+            ])
 
             @if ($solicitud->esta_por_aprobar)
                 {{-- Los botones van juntos abajo y cada uno pertenece a su propio
@@ -23,6 +31,13 @@
                      suya y que siga por aprobar: los botones no son la barrera. --}}
                 <form id="form-aprobar" method="POST" action="{{ route('solicitante.solicitudes.aprobar', $solicitud->id) }}">
                     @csrf
+                    {{-- Boton por defecto del formulario, DESHABILITADO: con los
+                         cuadros del encabezado asociados a este form, Enter en uno
+                         de ellos haria el envio implicito y aprobaria la solicitud
+                         sin querer. Con el boton por defecto deshabilitado el
+                         navegador no envia (HTML, "implicit submission"), tambien
+                         sin JavaScript. Tiene que ir ANTES que el boton Aprobar. --}}
+                    <button type="submit" disabled hidden aria-hidden="true" tabindex="-1"></button>
                 </form>
                 <form id="form-denegar" method="POST" action="{{ route('solicitante.solicitudes.denegar', $solicitud->id) }}"
                       data-confirmar="Denegar la solicitud {{ $solicitud->numero }}? No pasara al almacen y no se puede deshacer.">
@@ -31,7 +46,13 @@
 
                 <div class="card border-0 shadow-sm mt-4">
                     <div class="card-body">
-                        <h2 class="h6 mb-3">Su decision</h2>
+                        <h2 class="h6 mb-1">Su decision</h2>
+                        <p class="small text-secondary mb-3">
+                            Los datos del encabezado (referencia, OC, dias de entrega, centros y proyecto)
+                            y los de cada repuesto (motivo, bodega, unidad de medida, centros, cantidad,
+                            proyecto, notas y descripcion) son opcionales y se guardan al aprobar.
+                            Denegar no los guarda.
+                        </p>
 
                         <label for="motivo_denegacion" class="form-label small">Motivo (opcional, solo si deniega)</label>
                         <textarea class="form-control mb-3 @error('motivo_denegacion') is-invalid @enderror"

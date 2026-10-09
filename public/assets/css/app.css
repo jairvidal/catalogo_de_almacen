@@ -729,6 +729,41 @@ a:focus-visible {
 }
 
 /* --------------------------------------------------------------------------
+   Busqueda por imagen (botones junto al buscador y resultados)
+   -------------------------------------------------------------------------- */
+
+/* Porcentaje de coincidencia sobre la foto. Encima de la cinta de agotado
+   para que se lea tambien en un repuesto sin existencias. */
+.coincidencia-imagen {
+    position: absolute;
+    top: .5rem;
+    left: .5rem;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.boton-busqueda-imagen {
+    background-color: var(--ca-superficie);
+}
+
+/* Icono de imagen con una flecha pequena de "subir" en la esquina. */
+.icono-subir-imagen {
+    position: relative;
+    display: inline-block;
+}
+
+.icono-subir-imagen .bi-arrow-up-circle-fill {
+    position: absolute;
+    right: -.4rem;
+    bottom: -.3rem;
+    font-size: .62em;
+    color: var(--ca-primario);
+    background-color: var(--ca-superficie);
+    border-radius: 50%;
+    line-height: 1;
+}
+
+/* --------------------------------------------------------------------------
    Detalle del repuesto y miniaturas
    -------------------------------------------------------------------------- */
 
@@ -1068,6 +1103,75 @@ a:focus-visible {
     color: var(--ca-texto-secundario);
     font-size: .9rem;
 }
+
+/* Variante de las maestras del ERP (centros y proyecto en la aprobacion):
+   mismo cuadro combinado en tamano sm, con chevron en vez de lupa porque
+   tambien se abre sin escribir. "Sin asignar" va atenuado: es la ausencia
+   de valor, no una opcion del ERP. */
+.combo-maestra .combo-texto { padding-right: 2rem; }
+
+.combo-maestra .combo-icono {
+    right: .65rem;
+    font-size: .8rem;
+}
+
+.combo-maestra .combo-opciones { font-size: .875rem; }
+
+.combo-opciones .combo-sin-asignar {
+    color: var(--ca-texto-secundario);
+    font-style: italic;
+}
+
+/* Lista flotante de un combo que vive dentro de .table-responsive: ese
+   contenedor recorta lo que se sale (overflow), asi que la lista se pinta
+   fija a la ventana y app.js la ubica bajo (o sobre) el cuadro. */
+.combo-opciones.combo-opciones-flotante {
+    position: fixed;
+    right: auto;
+    margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Tabla REPUESTOS de la aprobacion (portal, por aprobar)
+
+   Todas las referencias del item en el mismo renglon: seis listas, la
+   cantidad aprobada, la unidad de negocio y dos textos. Con anchos minimos
+   la tabla se desplaza dentro de .table-responsive en vez de aplastar los
+   cuadros (mismo criterio que los filtros por columna de la bandeja).
+   -------------------------------------------------------------------------- */
+
+.tabla-items-aprobacion .columna-repuesto { min-width: 12rem; }
+
+.tabla-items-aprobacion .columna-lista { min-width: 11.5rem; }
+
+.tabla-items-aprobacion .columna-cantidad { min-width: 7rem; }
+
+.tabla-items-aprobacion .columna-unidad-negocio { min-width: 6.5rem; }
+
+.tabla-items-aprobacion .columna-texto { min-width: 15rem; }
+
+.tabla-items-aprobacion th { white-space: nowrap; }
+
+/* Notas y descripcion: una linea de alto para no inflar el renglon; la
+   persona la agranda si necesita (resize vertical). */
+.tabla-items-aprobacion .campo-texto-item {
+    min-height: calc(1.5em + .5rem + 2px);
+    resize: vertical;
+}
+
+/* Referencias por item en solo lectura (portal ya decidida y panel):
+   etiqueta y valor en linea, uno por renglon. */
+.referencias-item > div { display: flex; gap: .35rem; }
+
+.referencias-item dt {
+    font-weight: 400;
+    color: var(--ca-texto-secundario);
+    white-space: nowrap;
+}
+
+.referencias-item dt::after { content: ":"; }
+
+.referencias-item dd { margin: 0; }
 
 /* --------------------------------------------------------------------------
    Impresion del pedido

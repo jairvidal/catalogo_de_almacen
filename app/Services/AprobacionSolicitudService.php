@@ -8,6 +8,7 @@ use App\Mail\SolicitudAprobadaMail;
 use App\Mail\SolicitudDenegadaMail;
 use App\Models\SolicitanteErp;
 use App\Models\Solicitud;
+use App\Models\SolicitudItem;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\DB;
@@ -30,15 +31,35 @@ use Illuminate\Support\Facades\Mail;
  */
 class AprobacionSolicitudService
 {
-    public function aprobar(int $solicitudId, SolicitanteErp $aprobador): Solicitud
+    /**
+     * @param  array<string, string|int|null>  $referencias  columnas de
+     *                                                       Solicitud::REFERENCIAS_APROBACION (con su nombre real, cod_OC);
+     *                                                       cualquier otra clave se ignora
+     * @param  array<int, array<string, string|null>>  $items  id del detalle =>
+     *                                                         columnas de SolicitudItem::REFERENCIAS_APROBACION;
+     *                                                         un id que no sea de ESTA solicitud se ignora
+     *
+     * @throws DecisionSolicitudException si ya no esta por aprobar o un codigo
+     *                                    de maestra dejo de estar disponible
+     */
+    public function aprobar(int $solicitudId, SolicitanteErp $aprobador, array $referencias = [], array $items = []): Solicitud
     {
-        $solicitud = DB::transaction(function () use ($solicitudId, $aprobador) {
+        $solicitud = DB::transaction(function () use ($solicitudId, $aprobador, $referencias, $items) {
             $solicitud = $this->releerPorAprobar($solicitudId, $aprobador);
+
+            // Todo se resuelve (y puede fallar) antes de escribir la primera
+            // fila; igual, cualquier excepcion revierte la transaccion entera.
+            $cabecera = $this->referenciasAGuardar($referencias);
+            $porItem = $this->referenciasDeItemsAGuardar($solicitud, $items);
 
             $solicitud->forceFill([
                 'estado' => Solicitud::ESTADO_PENDIENTE,
                 'aprobada_at' => now(),
-            ])->save();
+            ] + $cabecera)->save();
+
+            foreach ($porItem as [$item, $columnas]) {
+                $item->forceFill($columnas)->save();
+            }
 
             return $solicitud;
         });
@@ -111,6 +132,145 @@ class AprobacionSolicitudService
         }
 
         return $solicitud;
+    }
+
+    /**
+     * Lista blanca de las columnas de referencia (nada fuera de
+     * REFERENCIAS_APROBACION llega al forceFill). Cada codigo de maestra se
+     * RELEE aqui, dentro de la transaccion: el FormRequest lo valido, pero la
+     * maestra pudo inactivarse entre tanto. Se guarda la clave tal como esta
+     * en la maestra, no la que escribio el formulario (la collation es CI:
+     * "abc" encontraria "ABC").
+     *
+     * Todas se escriben, tambien las que llegan vacias: aprobar sin
+     * diligenciarlas las deja en null.
+     *
+     * @param  array<string, string|int|null>  $referencias
+     * @return array<string, string|int|null>
+     */
+    private function referenciasAGuardar(array $referencias): array
+    {
+        $columnas = [];
+
+        foreach (array_keys(Solicitud::REFERENCIAS_APROBACION) as $columna) {
+            $valor = $referencias[$columna] ?? null;
+            $relacion = Solicitud::REFERENCIAS_DE_MAESTRA[$columna] ?? null;
+
+            if ($relacion !== null && $valor !== null) {
+                $modelo = (new Solicitud)->{$relacion}()->getRelated();
+                $maestra = $modelo::activaPorCodigo((string) $valor);
+
+                if ($maestra === null) {
+                    throw new DecisionSolicitudException(
+                        'El '.mb_strtolower(Solicitud::REFERENCIAS_APROBACION[$columna])
+                        ." elegido ({$valor}) ya no esta disponible. Elija otro y apruebe de nuevo."
+                    );
+                }
+
+                $valor = (string) $maestra->getKey();
+            }
+
+            $columnas[$columna] = $valor;
+        }
+
+        return $columnas;
+    }
+
+    /**
+     * Columnas de referencia por item, listas para guardar. Mismo criterio que
+     * la cabecera, con tres reglas propias:
+     *
+     *  - Lista blanca de ids: solo los items de ESTA solicitud (leidos aqui,
+     *    con la solicitud ya bloqueada). Un id ajeno se ignora: nunca se toca
+     *    un item de otra solicitud.
+     *  - Se escriben TODOS los items de la solicitud; el que no llega en la
+     *    peticion queda con sus referencias en null, como la cabecera.
+     *  - cod_unidad_negocio se impone siempre (UNIDAD_NEGOCIO_POR_DEFECTO).
+     *
+     * Los codigos se RELEEN en su maestra activa con una consulta por maestra
+     * (no por item), y se exige de nuevo el largo de la columna y la forma de
+     * la cantidad: el FormRequest ya lo hizo, pero la maestra pudo cambiar y
+     * este metodo no debe confiar en quien lo llama.
+     *
+     * @param  array<int, array<string, string|null>>  $items
+     * @return list<array{0: SolicitudItem, 1: array<string, string|null>}>
+     */
+    private function referenciasDeItemsAGuardar(Solicitud $solicitud, array $items): array
+    {
+        $detalle = $solicitud->items()->orderBy('id')->get();
+        $pedidos = [];
+
+        foreach ($detalle as $item) {
+            $campos = $items[$item->id] ?? [];
+            $columnas = [];
+
+            foreach (array_keys(SolicitudItem::REFERENCIAS_APROBACION) as $columna) {
+                $valor = $campos[$columna] ?? null;
+                $valor = $valor === null ? null : trim((string) $valor);
+                $columnas[$columna] = $valor === '' ? null : $valor;
+            }
+
+            $columnas['cod_unidad_negocio'] = SolicitudItem::UNIDAD_NEGOCIO_POR_DEFECTO;
+            $pedidos[] = [$item, $columnas];
+        }
+
+        foreach ($pedidos as [$item, $columnas]) {
+            $this->exigirFormaDeItem($item, $columnas);
+        }
+
+        foreach (SolicitudItem::REFERENCIAS_DE_MAESTRA as $columna => $relacion) {
+            $codigos = array_values(array_filter(array_map(fn ($pedido) => $pedido[1][$columna], $pedidos), fn ($valor) => $valor !== null));
+            $modelo = (new SolicitudItem)->{$relacion}()->getRelated();
+            $activas = $modelo::activasPorCodigos($codigos);
+
+            foreach ($pedidos as $i => [$item, $columnas]) {
+                $valor = $columnas[$columna];
+
+                if ($valor === null) {
+                    continue;
+                }
+
+                $maestra = $activas[mb_strtolower($valor)] ?? null;
+
+                if ($maestra === null) {
+                    throw new DecisionSolicitudException(
+                        'En el item '.$item->codigo.', la opcion de '.mb_strtolower(rtrim(SolicitudItem::REFERENCIAS_APROBACION[$columna], '.'))
+                        ." ({$valor}) ya no esta disponible. Elija otra y apruebe de nuevo."
+                    );
+                }
+
+                // La clave tal como esta en la maestra (collation CI).
+                $pedidos[$i][1][$columna] = (string) $maestra->getKey();
+            }
+        }
+
+        return $pedidos;
+    }
+
+    /**
+     * @param  array<string, string|null>  $columnas
+     *
+     * @throws DecisionSolicitudException
+     */
+    private function exigirFormaDeItem(SolicitudItem $item, array $columnas): void
+    {
+        foreach (SolicitudItem::LARGO_MAXIMO as $columna => $largo) {
+            if ($columnas[$columna] !== null && mb_strlen($columnas[$columna]) > $largo) {
+                throw new DecisionSolicitudException(
+                    "En el item {$item->codigo}, ".mb_strtolower(rtrim(SolicitudItem::REFERENCIAS_APROBACION[$columna], '.'))
+                    ." admite hasta {$largo} caracteres."
+                );
+            }
+        }
+
+        $cantidad = $columnas['cantidad'];
+
+        if ($cantidad !== null && (! preg_match(SolicitudItem::PATRON_CANTIDAD, $cantidad) || (float) $cantidad <= 0)) {
+            throw new DecisionSolicitudException(
+                "En el item {$item->codigo}, la cantidad debe ser un numero mayor que cero con hasta "
+                .SolicitudItem::CANTIDAD_DECIMALES.' decimales.'
+            );
+        }
     }
 
     /**

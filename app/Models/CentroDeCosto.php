@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EsMaestraErp;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -13,10 +14,13 @@ use Illuminate\Database\Eloquent\Model;
  * Tras un create() el `id` no queda en el modelo; use refresh() si lo necesita.
  * $keyType = 'string' evita que un codigo como 'P91885' o '015' se trate como numero.
  *
- * Solo esquema: hoy nada llena la tabla (ver CLAUDE.md).
+ * Solo la LEE la aprobacion del portal (opciones de la lista y relectura del
+ * codigo elegido, ver EsMaestraErp); nada de la aplicacion la llena.
  */
 class CentroDeCosto extends Model
 {
+    use EsMaestraErp;
+
     protected $table = 'tbl_centro_de_costo';
 
     protected $primaryKey = 'col_cod_centro_de_costo';

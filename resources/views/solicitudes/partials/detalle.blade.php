@@ -1,4 +1,28 @@
-{{-- Detalle publico de una solicitud: encabezado, linea de tiempo e items. --}}
+{{--
+    Detalle publico de una solicitud: encabezado, linea de tiempo e items.
+
+    $referencias (opcional) decide si se pintan las columnas de referencia
+    (Solicitud::REFERENCIAS_APROBACION):
+      null       no se muestran (confirmacion y /consultar, que son publicas)
+      'lectura'  solo las diligenciadas, sin cuadros (portal, ya decidida)
+      'edicion'  cuadros asociados a <form id="form-aprobar"> (portal, por
+                 aprobar); requiere $opcionesReferencia, las listas de las
+                 maestras por columna, y $opcionesItem, las de los items
+                 (tabla REPUESTOS, partial items-edicion)
+
+    Las referencias POR ITEM siguen la misma regla: en 'lectura' se pintan
+    bajo el nombre del repuesto (partial referencias-item) y sin
+    $referencias no se muestran.
+--}}
+@php
+    $modoReferencias = $referencias ?? null;
+    $editarReferencias = $modoReferencias === 'edicion';
+    $filasReferencia = collect($modoReferencias === 'lectura' ? $solicitud->referenciasParaMostrar() : []);
+    $referenciasDocumento = $filasReferencia->where('grupo', 'documento');
+    $referenciasCentros = $filasReferencia->where('grupo', 'centros');
+    $columnaCentros = $editarReferencias || $referenciasCentros->isNotEmpty();
+    $etiquetas = \App\Models\Solicitud::REFERENCIAS_APROBACION;
+@endphp
 
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
@@ -16,7 +40,7 @@
     <div class="card-body">
 
         <div class="row g-4">
-            <div class="col-md-5">
+            <div class="{{ $columnaCentros ? 'col-md-6 col-xl-4' : 'col-md-5' }}">
                 <h2 class="h6 text-uppercase text-secondary mb-3" style="letter-spacing:.05em">Solicitante</h2>
                 <dl class="row small mb-0">
                     @if ($solicitud->nombre_completo)
@@ -43,10 +67,70 @@
                         <dt class="col-5 fw-normal text-secondary">Area</dt>
                         <dd class="col-7">{{ $solicitud->solicitante_area }}</dd>
                     @endif
+
+                    @if ($editarReferencias)
+                        {{-- Viajan con el boton Aprobar (atributo form); Denegar no
+                             los guarda. Enter en un cuadro no aprueba: ver el boton
+                             deshabilitado dentro de form-aprobar. --}}
+                        @foreach ([
+                            ['cod_referencia', 'cod_referencia', 50, 'text'],
+                            ['cod_oc', 'cod_OC', 50, 'text'],
+                            ['dias_entrega', 'dias_entrega', null, 'numero'],
+                        ] as [$campo, $columna, $largo, $tipo])
+                            <dt class="col-5 fw-normal text-secondary pt-1">
+                                <label for="{{ $campo }}" class="mb-0">{{ $etiquetas[$columna] }}</label>
+                            </dt>
+                            <dd class="col-7">
+                                <input type="text" id="{{ $campo }}" name="{{ $campo }}" form="form-aprobar"
+                                       class="form-control form-control-sm @error($campo) is-invalid @enderror"
+                                       value="{{ old($campo, $solicitud->getAttribute($columna)) }}"
+                                       autocomplete="off"
+                                       @if ($largo) maxlength="{{ $largo }}" @endif
+                                       @if ($tipo === 'numero')
+                                           inputmode="numeric" pattern="[0-9]*" maxlength="4"
+                                           title="Solo numeros enteros"
+                                       @endif
+                                       @error($campo) aria-describedby="{{ $campo }}-error" @enderror>
+                                @error($campo)
+                                    <div id="{{ $campo }}-error" class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                            </dd>
+                        @endforeach
+                    @else
+                        @foreach ($referenciasDocumento as $fila)
+                            <dt class="col-5 fw-normal text-secondary">{{ $fila['etiqueta'] }}</dt>
+                            <dd class="col-7 text-break">{{ $fila['valor'] }}</dd>
+                        @endforeach
+                    @endif
                 </dl>
             </div>
 
-            <div class="col-md-7">
+            @if ($columnaCentros)
+                <div class="col-md-6 col-xl-4">
+                    <h2 class="h6 text-uppercase text-secondary mb-3" style="letter-spacing:.05em">Centros y proyecto</h2>
+
+                    @if ($editarReferencias)
+                        @foreach (\App\Models\Solicitud::REFERENCIAS_DE_MAESTRA as $columna => $relacion)
+                            @include('solicitudes.partials.combo-maestra', [
+                                'nombre' => $columna,
+                                'etiqueta' => $etiquetas[$columna],
+                                'opciones' => $opcionesReferencia[$columna] ?? [],
+                                'valor' => old($columna, $solicitud->getAttribute($columna)),
+                                'form' => 'form-aprobar',
+                            ])
+                        @endforeach
+                    @else
+                        <dl class="row small mb-0">
+                            @foreach ($referenciasCentros as $fila)
+                                <dt class="col-5 fw-normal text-secondary">{{ $fila['etiqueta'] }}</dt>
+                                <dd class="col-7 text-break">{{ $fila['valor'] }}</dd>
+                            @endforeach
+                        </dl>
+                    @endif
+                </div>
+            @endif
+
+            <div class="{{ $columnaCentros ? 'col-xl-4' : 'col-md-7' }}">
                 <h2 class="h6 text-uppercase text-secondary mb-3" style="letter-spacing:.05em">Seguimiento</h2>
                 <ul class="linea-tiempo small">
                     <li class="cumplido">
@@ -134,6 +218,12 @@
         @endif
     </div>
 
+    @if ($editarReferencias)
+        @include('solicitudes.partials.items-edicion', [
+            'solicitud' => $solicitud,
+            'opcionesItem' => $opcionesItem ?? [],
+        ])
+    @else
     <div class="table-responsive border-top">
         <table class="table align-middle mb-0">
             <thead class="table-light">
@@ -154,6 +244,9 @@
                     <td>
                         <div class="fw-semibold">{{ $item->nombre }}</div>
                         <span class="repuesto-codigo">{{ $item->codigo }}</span>
+                        @if ($modoReferencias === 'lectura')
+                            @include('solicitudes.partials.referencias-item', ['item' => $item])
+                        @endif
                     </td>
                     <td class="text-end pe-3">
                         <span class="fw-semibold">{{ $item->cantidad_entregada ?? $item->cantidad_solicitada }}</span>
@@ -174,4 +267,5 @@
             </tfoot>
         </table>
     </div>
+    @endif
 </div>

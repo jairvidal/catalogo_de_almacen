@@ -6,7 +6,7 @@ use App\Models\Parametro;
 use Illuminate\Database\Seeder;
 
 /**
- * Los ocho parametros que necesita la sincronizacion de stock con la API de
+ * Los nueve parametros que necesita la sincronizacion de stock con la API de
  * inventario de Sidocsa (ver App\Services\InventarioApiSidocsa).
  *
  * Todos entran con col_sistema = true: el codigo los pide por nombre y sin
@@ -16,7 +16,7 @@ use Illuminate\Database\Seeder;
 class ParametroSeeder extends Seeder
 {
     /**
-     * OJO CON api.criterio y api.criterio_2: su valor es una LISTA DE IDs
+     * OJO CON api.criterio, api.criterio_2 y api.criterio_3: su valor es una LISTA DE IDs
      * NUMERICOS SEPARADOS POR COMA ('2002,2010'), porque la API los recibe como
      * arreglos JSON de enteros. Parametro::listaEnteros() la parte, le hace trim
      * a cada elemento y descarta —con Log::warning— lo que no sea numerico.
@@ -73,6 +73,13 @@ class ParametroSeeder extends Seeder
             'descripcion' => 'IDs de los SUBGRUPOS que se consultan en la API de inventario; viajan como el '
                 .'arreglo criterio. Se escriben separados por coma y son NUMEROS, igual que api.criterio_2. '
                 .'Vacio significa sin filtro de subgrupo.',
+        ],
+        [
+            'nombre' => Parametro::API_CRITERIO_3,
+            'valor' => '9601,9602,9603,9604,9605,9606,9607,9608,9609,9610,9611,9612,9613,9614,9615,'
+                .'9616,9617,9618,9619,9620,9621',
+            'descripcion' => 'IDs del tercer nivel de criterio del ERP; viajan como el arreglo criterio_3. '
+                .'Separados por coma y NUMEROS, igual que api.criterio_2. Vacio = sin este filtro.',
         ],
         [
             'nombre' => Parametro::INV_EXISTENCIA_INICIALIZADA,

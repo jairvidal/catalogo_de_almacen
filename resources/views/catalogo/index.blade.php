@@ -40,10 +40,34 @@
             <div class="row g-2 align-items-start">
                 <div class="col-lg-4">
                     <label for="q" class="form-label small text-secondary mb-1">Buscar</label>
+                    {{-- Busqueda por imagen (camara o archivo): la maneja app.js
+                         por data-busqueda-imagen y va por fetch a su propio
+                         endpoint. Los <input type="file"> NO llevan name a
+                         proposito: asi nunca viajan con este formulario GET. --}}
+                    <div data-busqueda-imagen
+                         data-url="{{ route('catalogo.buscar-imagen') }}"
+                         data-max-kb="{{ (int) config('services.anthropic.imagen.max_kb', 10240) }}">
                     <div class="input-group">
                         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
                         <input type="search" class="form-control" id="q" name="q" value="{{ $termino }}"
                                placeholder="Codigo, nombre o descripcion del repuesto" autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary boton-busqueda-imagen"
+                                data-abrir-imagen="camara"
+                                title="Buscar con la camara" aria-label="Tomar una foto del repuesto para buscarlo">
+                            <i class="bi bi-camera" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary boton-busqueda-imagen"
+                                data-abrir-imagen="archivo"
+                                title="Buscar con una foto (JPG o PNG)" aria-label="Subir una foto JPG o PNG del repuesto para buscarlo">
+                            <span class="icono-subir-imagen" aria-hidden="true">
+                                <i class="bi bi-image"></i><i class="bi bi-arrow-up-circle-fill"></i>
+                            </span>
+                        </button>
+                    </div>
+                    {{-- Fuera del input-group: Bootstrap redondea la esquina del
+                         ultimo hijo y un input oculto al final se la quitaria al boton. --}}
+                    <input type="file" accept="image/*" capture="environment" hidden data-entrada-imagen="camara">
+                    <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" hidden data-entrada-imagen="archivo">
                     </div>
                 </div>
 
@@ -114,6 +138,13 @@
     {{-- ------------------------------------------------------------------ --}}
     {{-- Resultados                                                         --}}
     {{-- ------------------------------------------------------------------ --}}
+
+    {{-- Resultados de la busqueda por imagen: los pinta app.js con el HTML que
+         devuelve el servidor. Mientras se ven, el listado normal queda oculto
+         (no se descarta), y "Quitar filtro por imagen" lo vuelve a mostrar. --}}
+    <div data-resultados-imagen aria-live="polite" hidden></div>
+
+    <div data-resultados-catalogo>
     @if ($repuestos->isEmpty())
         <div class="card border-0 shadow-sm">
             <div class="card-body text-center py-5">
@@ -128,83 +159,10 @@
     @else
         <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3">
             @foreach ($repuestos as $repuesto)
-                @php $enCarrito = $seleccionados[$repuesto->id] ?? 0; @endphp
-
-                <div class="col">
-                    <div class="card card-repuesto">
-                        <a href="{{ route('catalogo.show', $repuesto) }}" class="repuesto-foto">
-                            <img src="{{ $repuesto->foto_url }}" alt="{{ $repuesto->nombre }}" loading="lazy">
-
-                            @if ($repuesto->sin_stock)
-                                <span class="cinta-agotado">
-                                    <span class="badge text-bg-secondary">Sin existencias</span>
-                                </span>
-                            @endif
-                        </a>
-
-                        <div class="card-body d-flex flex-column p-3">
-                            <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
-                                <span class="repuesto-codigo">{{ $repuesto->codigo }}</span>
-                                @if ($repuesto->categoriaAsignada)
-                                    {{-- El color de relleno sale de tbl_categoria: es el color
-                                         real del marco de la foto, o sea contenido, no diseno.
-                                         Es la unica excepcion a "no hex sueltos en las vistas". --}}
-                                    <span class="badge text-bg-light border fw-normal text-secondary d-inline-flex align-items-center gap-1"
-                                          style="font-size:.68rem">
-                                        <span class="chip-color chip-color-sm"
-                                              style="background-color: {{ $repuesto->categoriaAsignada->col_color_hex }}"></span>
-                                        {{ $repuesto->categoriaAsignada->col_nombre }}
-                                    </span>
-                                @endif
-                            </div>
-
-                            <a href="{{ route('catalogo.show', $repuesto) }}"
-                               class="repuesto-nombre text-decoration-none text-dark mb-2">
-                                {{ $repuesto->nombre }}
-                            </a>
-
-                            <div class="mb-3">
-                                @if ($repuesto->sin_stock)
-                                    <span class="badge text-bg-danger-subtle text-danger-emphasis border border-danger-subtle fw-normal">
-                                        <i class="bi bi-x-circle me-1"></i>Agotado
-                                    </span>
-                                @elseif ($repuesto->stock_bajo)
-                                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-normal">
-                                        <i class="bi bi-exclamation-triangle me-1"></i>
-                                        Ultimas {{ $repuesto->existencia }} {{ $repuesto->unidad_medida }}
-                                    </span>
-                                @else
-                                    <span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle fw-normal">
-                                        <i class="bi bi-check-circle me-1"></i>
-                                        {{ $repuesto->existencia }} {{ $repuesto->unidad_medida }} disponibles
-                                    </span>
-                                @endif
-                            </div>
-
-                            <div class="mt-auto">
-                                @if ($repuesto->sin_stock)
-                                    <button type="button" class="btn btn-outline-secondary w-100" disabled>
-                                        No disponible
-                                    </button>
-                                @else
-                                    <form method="POST" action="{{ route('carrito.store', $repuesto) }}" data-agregar-carrito>
-                                        @csrf
-                                        <input type="hidden" name="cantidad" value="1">
-                                        <button type="submit" class="btn btn-marca w-100">
-                                            <i class="bi bi-plus-lg me-1"></i>Agregar
-                                        </button>
-                                    </form>
-
-                                    @if ($enCarrito > 0)
-                                        <p class="small text-success mb-0 mt-2 text-center">
-                                            <i class="bi bi-cart-check me-1"></i>{{ $enCarrito }} en su solicitud
-                                        </p>
-                                    @endif
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                @include('catalogo.partials.tarjeta-repuesto', [
+                    'repuesto' => $repuesto,
+                    'enCarrito' => $seleccionados[$repuesto->id] ?? 0,
+                ])
             @endforeach
         </div>
 
@@ -212,5 +170,6 @@
             {{ $repuestos->links('pagination::bootstrap-5') }}
         </div>
     @endif
+    </div>
 
 @endsection

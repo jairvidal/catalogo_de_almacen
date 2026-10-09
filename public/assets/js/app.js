@@ -119,6 +119,177 @@
         }
     });
 
+    /* --- Busqueda por imagen del catalogo (data-busqueda-imagen) --------- */
+
+    /* Dos botones junto al buscador: camara (input con capture, que en el
+       celular abre la camara y en el escritorio cae al explorador) y subir
+       foto (solo JPG/PNG). La foto se reduce en el navegador antes de subirla
+       para que el envio sea rapido con datos moviles; el servidor la vuelve a
+       reducir igual. El resultado (HTML que pinta el servidor) reemplaza a la
+       vista el listado, que solo se oculta: "Quitar filtro por imagen" lo
+       devuelve tal como estaba, con sus filtros y su pagina. */
+
+    const LADO_MAXIMO_SUBIDA = 1600;
+    const TIPOS_ARCHIVO = ['image/jpeg', 'image/png'];
+
+    async function reducirImagen(archivo) {
+        try {
+            const mapa = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+            const escala = Math.min(1, LADO_MAXIMO_SUBIDA / Math.max(mapa.width, mapa.height));
+            const lienzo = document.createElement('canvas');
+            lienzo.width = Math.max(1, Math.round(mapa.width * escala));
+            lienzo.height = Math.max(1, Math.round(mapa.height * escala));
+
+            const contexto = lienzo.getContext('2d');
+            contexto.fillStyle = '#fff'; /* fondo para los PNG con transparencia */
+            contexto.fillRect(0, 0, lienzo.width, lienzo.height);
+            contexto.drawImage(mapa, 0, 0, lienzo.width, lienzo.height);
+            mapa.close?.();
+
+            const reducida = await new Promise((resolver) => lienzo.toBlob(resolver, 'image/jpeg', 0.88));
+
+            return reducida ?? archivo;
+        } catch (error) {
+            /* Navegador viejo o formato que no sabe decodificar: va el original
+               y el servidor decide si lo acepta. */
+            return archivo;
+        }
+    }
+
+    function estadoBusquedaImagen(contenedor, ocupado, botonActivo) {
+        contenedor.setAttribute('aria-busy', ocupado ? 'true' : 'false');
+
+        contenedor.querySelectorAll('[data-abrir-imagen]').forEach((boton) => {
+            boton.disabled = ocupado;
+
+            if (ocupado && boton === botonActivo) {
+                boton.dataset.htmlOriginal = boton.innerHTML;
+                boton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
+            } else if (!ocupado && boton.dataset.htmlOriginal) {
+                boton.innerHTML = boton.dataset.htmlOriginal;
+                delete boton.dataset.htmlOriginal;
+            }
+        });
+    }
+
+    function mostrarResultadosImagen(html) {
+        const zona = document.querySelector('[data-resultados-imagen]');
+        const listado = document.querySelector('[data-resultados-catalogo]');
+
+        if (!zona) {
+            return;
+        }
+
+        zona.innerHTML = html;
+        zona.hidden = false;
+
+        if (listado) {
+            listado.hidden = true;
+        }
+
+        zona.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.addEventListener('click', (evento) => {
+        const boton = evento.target.closest('[data-abrir-imagen]');
+
+        if (boton) {
+            const contenedor = boton.closest('[data-busqueda-imagen]');
+            const entrada = contenedor?.querySelector(`[data-entrada-imagen="${boton.dataset.abrirImagen}"]`);
+
+            if (entrada) {
+                entrada.value = ''; /* permite volver a elegir la misma foto */
+                entrada.click();
+            }
+
+            return;
+        }
+
+        if (evento.target.closest('[data-quitar-busqueda-imagen]')) {
+            const zona = document.querySelector('[data-resultados-imagen]');
+            const listado = document.querySelector('[data-resultados-catalogo]');
+
+            if (zona) {
+                zona.hidden = true;
+                zona.innerHTML = '';
+            }
+
+            if (listado) {
+                listado.hidden = false;
+            }
+        }
+    });
+
+    document.addEventListener('change', async (evento) => {
+        const entrada = evento.target.closest('input[data-entrada-imagen]');
+
+        if (!entrada || !entrada.files || entrada.files.length === 0) {
+            return;
+        }
+
+        const contenedor = entrada.closest('[data-busqueda-imagen]');
+        const archivo = entrada.files[0];
+
+        if (!contenedor) {
+            return;
+        }
+
+        /* La camara puede entregar otros formatos (HEIC en algunos iPhone): se
+           convierten a JPEG al reducir. El boton de archivo pide JPG o PNG. */
+        if (entrada.dataset.entradaImagen === 'archivo' && !TIPOS_ARCHIVO.includes(archivo.type)) {
+            mostrarAviso('Seleccione una imagen JPG, JPEG o PNG.', 'danger');
+            return;
+        }
+
+        const botonActivo = contenedor.querySelector(`[data-abrir-imagen="${entrada.dataset.entradaImagen}"]`);
+        estadoBusquedaImagen(contenedor, true, botonActivo);
+        mostrarAviso('Analizando la imagen. Puede tardar unos segundos...', 'success');
+
+        try {
+            const imagen = await reducirImagen(archivo);
+            const maximoKb = Number(contenedor.dataset.maxKb || 0);
+
+            if (maximoKb > 0 && imagen.size > maximoKb * 1024) {
+                mostrarAviso(`La imagen no puede pesar mas de ${(maximoKb / 1024).toFixed(1)} MB.`, 'danger');
+                return;
+            }
+
+            const datos = new FormData();
+            datos.append('imagen', imagen, imagen.type === 'image/png' ? 'foto.png' : 'foto.jpg');
+
+            const respuesta = await fetch(contenedor.dataset.url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    Accept: 'application/json',
+                },
+                body: datos,
+            });
+
+            const resultado = await respuesta.json().catch(() => ({}));
+
+            if (respuesta.ok && resultado.ok) {
+                mostrarResultadosImagen(resultado.html ?? '');
+                mostrarAviso(resultado.mensaje, 'success');
+            } else {
+                /* mensaje: lo explica el controlador; message: validacion o
+                   error de Laravel; si no hay ninguno, el codigo HTTP. */
+                mostrarAviso(
+                    resultado.mensaje
+                        ?? resultado.message
+                        ?? `No se pudo buscar por imagen (HTTP ${respuesta.status}).`,
+                    'danger'
+                );
+            }
+        } catch (error) {
+            mostrarAviso('No se pudo conectar con el servidor. Intente de nuevo.', 'danger');
+        } finally {
+            estadoBusquedaImagen(contenedor, false, botonActivo);
+            entrada.value = '';
+        }
+    });
+
     /* --- Boton "Actualizar" del inventario (modo manual) ----------------- */
 
     /* La sincronizacion corre dentro de la peticion (QUEUE_CONNECTION=sync) y
@@ -666,6 +837,315 @@
             }
         });
     });
+
+    /* --- Cuadro combinado de maestras del ERP (centros, proyecto) -------- */
+
+    /* Mejora progresiva de un <select> que pinta el servidor: sin JavaScript
+       queda el select, que funciona igual. Con JavaScript el select se esconde
+       (sigue siendo el que viaja en el formulario) y encima va un combobox
+       ARIA 1.2 que filtra sus opciones sin ir al servidor: las maestras son
+       chicas. Cada palabra escrita tiene que aparecer (AND), sin distinguir
+       mayusculas ni tildes. Al salir del cuadro, un texto que no corresponde a
+       una opcion se deshace: vuelve lo que estaba elegido, y el cuadro vacio
+       deja la lista en "Sin asignar". La lista se arma con textContent. */
+    const MAXIMO_OPCIONES_VISIBLES = 100;
+
+    function normalizarBusqueda(texto) {
+        return String(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    }
+
+    document.querySelectorAll('[data-combo-maestra]').forEach((combo, numeroCombo) => {
+        const select = combo.querySelector('[data-combo-select]');
+
+        if (!select || !select.id) {
+            return;
+        }
+
+        const catalogo = Array.from(select.options)
+            .filter((opcion) => opcion.value !== '')
+            .map((opcion) => ({ valor: opcion.value, texto: opcion.textContent.trim(), normal: normalizarBusqueda(opcion.textContent) }));
+
+        const idCampo = select.id;
+        const idLista = `${idCampo}-opciones`;
+
+        // El label apunta al id: pasa del select al cuadro de texto.
+        select.id = `${idCampo}-nativo`;
+        select.hidden = true;
+        select.tabIndex = -1;
+
+        const campo = document.createElement('div');
+        campo.className = 'combo-campo';
+
+        const texto = document.createElement('input');
+        texto.type = 'text';
+        texto.id = idCampo;
+        texto.className = 'form-control form-control-sm combo-texto';
+        texto.classList.toggle('is-invalid', select.classList.contains('is-invalid'));
+        texto.setAttribute('role', 'combobox');
+        texto.setAttribute('aria-autocomplete', 'list');
+        texto.setAttribute('aria-expanded', 'false');
+        texto.setAttribute('aria-controls', idLista);
+        texto.autocomplete = 'off';
+        texto.spellcheck = false;
+        texto.placeholder = catalogo.length > 0 ? 'Sin asignar: escriba para buscar' : 'Sin opciones';
+        texto.disabled = catalogo.length === 0;
+
+        if (select.hasAttribute('aria-describedby')) {
+            texto.setAttribute('aria-describedby', select.getAttribute('aria-describedby'));
+        }
+
+        const icono = document.createElement('i');
+        icono.className = 'bi bi-chevron-down combo-icono';
+        icono.setAttribute('aria-hidden', 'true');
+
+        const lista = document.createElement('ul');
+        lista.id = idLista;
+        lista.className = 'combo-opciones';
+        lista.setAttribute('role', 'listbox');
+        lista.hidden = true;
+
+        const estado = document.createElement('div');
+        estado.className = 'visually-hidden';
+        estado.setAttribute('aria-live', 'polite');
+
+        campo.append(texto, icono);
+        select.after(campo, lista, estado);
+
+        // Dentro de .table-responsive (tabla de items de la aprobacion) el
+        // contenedor recortaria la lista: se pinta fija a la ventana, bajo el
+        // cuadro, o encima si abajo no cabe, y se reubica al desplazar.
+        const flotante = combo.closest('.table-responsive') !== null;
+        if (flotante) {
+            lista.classList.add('combo-opciones-flotante');
+        }
+
+        function ubicar() {
+            const caja = texto.getBoundingClientRect();
+            const ancho = Math.max(caja.width, 224);
+            const alto = lista.offsetHeight;
+            const abajo = caja.bottom + 4;
+            const arriba = caja.top - alto - 4;
+
+            lista.style.width = `${ancho}px`;
+            lista.style.left = `${Math.max(8, Math.min(caja.left, window.innerWidth - ancho - 8))}px`;
+            lista.style.top = `${abajo + alto > window.innerHeight && arriba > 0 ? arriba : abajo}px`;
+        }
+
+        function alDesplazar() {
+            if (!lista.hidden) {
+                ubicar();
+            }
+        }
+
+        let visibles = [];
+        let activa = -1;
+
+        function textoElegido() {
+            const elegida = catalogo.find((opcion) => opcion.valor === select.value);
+            return elegida ? elegida.texto : '';
+        }
+
+        texto.value = textoElegido();
+
+        // Otro codigo cambio el select (propagacion desde la cabecera): el
+        // cuadro visible se pone al dia.
+        select.addEventListener('combo:sincronizar', () => {
+            texto.value = textoElegido();
+        });
+
+        function cerrar() {
+            lista.hidden = true;
+            texto.setAttribute('aria-expanded', 'false');
+            texto.removeAttribute('aria-activedescendant');
+            activa = -1;
+
+            if (flotante) {
+                window.removeEventListener('scroll', alDesplazar, true);
+                window.removeEventListener('resize', alDesplazar);
+            }
+        }
+
+        function marcarActiva(indice) {
+            visibles.forEach((nodo, i) => {
+                nodo.classList.toggle('activa', i === indice);
+                nodo.setAttribute('aria-selected', i === indice ? 'true' : 'false');
+            });
+            activa = indice;
+
+            if (indice >= 0 && visibles[indice]) {
+                texto.setAttribute('aria-activedescendant', visibles[indice].id);
+                visibles[indice].scrollIntoView({ block: 'nearest' });
+            } else {
+                texto.removeAttribute('aria-activedescendant');
+            }
+        }
+
+        function pintar() {
+            // Mientras el cuadro muestra lo ya elegido, se ofrecen todas.
+            const termino = texto.value === textoElegido() ? '' : texto.value;
+            const palabras = normalizarBusqueda(termino).split(/\s+/).filter(Boolean);
+            const encontradas = catalogo.filter((opcion) => palabras.every((palabra) => opcion.normal.includes(palabra)));
+
+            lista.replaceChildren();
+            activa = -1;
+
+            const filas = palabras.length === 0 ? [{ valor: '', texto: 'Sin asignar' }, ...encontradas] : encontradas;
+
+            visibles = filas.slice(0, MAXIMO_OPCIONES_VISIBLES).map((opcion, i) => {
+                const nodo = document.createElement('li');
+                nodo.id = `${idLista}-op-${numeroCombo}-${i}`;
+                nodo.setAttribute('role', 'option');
+                nodo.setAttribute('aria-selected', 'false');
+                nodo.dataset.valor = opcion.valor;
+                nodo.textContent = opcion.texto;
+                if (opcion.valor === '') {
+                    nodo.classList.add('combo-sin-asignar');
+                }
+                lista.appendChild(nodo);
+                return nodo;
+            });
+
+            if (encontradas.length === 0 && palabras.length > 0) {
+                const vacio = document.createElement('li');
+                vacio.className = 'combo-vacio';
+                vacio.textContent = 'Ninguna opcion coincide.';
+                lista.appendChild(vacio);
+            } else if (filas.length > MAXIMO_OPCIONES_VISIBLES) {
+                const mas = document.createElement('li');
+                mas.className = 'combo-vacio';
+                mas.textContent = `Mostrando ${MAXIMO_OPCIONES_VISIBLES} de ${filas.length}. Escriba para acotar.`;
+                lista.appendChild(mas);
+            }
+
+            lista.hidden = false;
+            texto.setAttribute('aria-expanded', 'true');
+
+            if (flotante) {
+                ubicar();
+                window.addEventListener('scroll', alDesplazar, true);
+                window.addEventListener('resize', alDesplazar);
+            }
+
+            estado.textContent = encontradas.length === 0 && palabras.length > 0
+                ? 'Ninguna opcion coincide.'
+                : `${encontradas.length} opcion(es). Use las flechas para elegir y Enter para seleccionar.`;
+        }
+
+        function elegir(nodo) {
+            select.value = nodo.dataset.valor;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            texto.value = textoElegido();
+            texto.classList.remove('is-invalid');
+            cerrar();
+            estado.textContent = `Seleccionado: ${texto.value || 'Sin asignar'}`;
+        }
+
+        texto.addEventListener('input', pintar);
+        texto.addEventListener('focus', () => texto.select());
+        texto.addEventListener('click', () => { if (lista.hidden) { pintar(); } });
+
+        texto.addEventListener('keydown', (evento) => {
+            switch (evento.key) {
+                case 'ArrowDown':
+                case 'ArrowUp': {
+                    evento.preventDefault();
+                    if (lista.hidden) {
+                        pintar();
+                    }
+                    if (visibles.length > 0) {
+                        const siguiente = evento.key === 'ArrowDown'
+                            ? (activa < visibles.length - 1 ? activa + 1 : 0)
+                            : (activa > 0 ? activa - 1 : visibles.length - 1);
+                        marcarActiva(siguiente);
+                    }
+                    break;
+                }
+                case 'Enter':
+                    // Nunca envia el formulario: con la lista abierta elige.
+                    evento.preventDefault();
+                    if (!lista.hidden) {
+                        if (activa >= 0) {
+                            elegir(visibles[activa]);
+                        } else if (visibles.length === 1) {
+                            elegir(visibles[0]);
+                        }
+                    }
+                    break;
+                case 'Escape':
+                    if (!lista.hidden) {
+                        evento.preventDefault();
+                        cerrar();
+                        texto.value = textoElegido();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        lista.addEventListener('mousedown', (evento) => evento.preventDefault());
+
+        lista.addEventListener('click', (evento) => {
+            const nodo = evento.target.closest('[role="option"]');
+            if (nodo) {
+                elegir(nodo);
+                texto.focus();
+            }
+        });
+
+        texto.addEventListener('blur', () => {
+            if (texto.value.trim() === '' && select.value !== '') {
+                select.value = '';
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            texto.value = textoElegido();
+            cerrar();
+        });
+    });
+
+    /* --- Items que heredan de la cabecera (aprobacion) ------------------- */
+
+    /* select[data-hereda="cod_centro_operacion"] en un item copia lo que se
+       elija en el select de la cabecera con ese name, mientras la persona no
+       haya tocado el del item. El servidor ya prellena en el render inicial;
+       esto solo sigue los cambios. Si la opcion de la cabecera no existe en
+       el item (codigo mas largo que la columna del detalle), el item queda en
+       "Sin asignar". El cambio programatico no dispara "change", asi que no
+       cuenta como tocado. */
+    const itemsQueHeredan = document.querySelectorAll('select[data-hereda]');
+
+    itemsQueHeredan.forEach((destino) => {
+        const origen = document.querySelector(`select[name="${CSS.escape(destino.dataset.hereda)}"]`);
+
+        // Un valor propio distinto del de la cabecera ya es una decision.
+        if (origen && destino.value !== '' && destino.value !== origen.value) {
+            destino.dataset.tocado = '1';
+        }
+
+        destino.addEventListener('change', () => {
+            destino.dataset.tocado = '1';
+        });
+    });
+
+    if (itemsQueHeredan.length > 0) {
+        document.addEventListener('change', (evento) => {
+            const origen = evento.target;
+
+            if (!(origen instanceof HTMLSelectElement) || origen.hasAttribute('data-hereda') || !origen.name) {
+                return;
+            }
+
+            document.querySelectorAll(`select[data-hereda="${CSS.escape(origen.name)}"]`).forEach((destino) => {
+                if (destino.dataset.tocado) {
+                    return;
+                }
+
+                const existe = Array.from(destino.options).some((opcion) => opcion.value === origen.value);
+                destino.value = existe ? origen.value : '';
+                destino.dispatchEvent(new CustomEvent('combo:sincronizar'));
+            });
+        });
+    }
 
     /* --- Mostrar toasts que vienen del servidor (sesion flash) ----------- */
 

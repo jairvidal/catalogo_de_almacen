@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\RepuestoAdminController;
 use App\Http\Controllers\Admin\RolAdminController;
 use App\Http\Controllers\Admin\SolicitanteAdminController;
 use App\Http\Controllers\Admin\SolicitudAdminController;
+use App\Http\Controllers\BusquedaImagenController;
 use App\Http\Controllers\CarritoController;
 use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\Solicitante\AccesoController;
@@ -26,6 +27,13 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [CatalogoController::class, 'index'])->name('catalogo.index');
 Route::get('/repuestos/{repuesto}', [CatalogoController::class, 'show'])->name('catalogo.show');
+
+// Busqueda por imagen (camara o archivo) con la API de Claude. Cada consulta
+// cuesta dinero: limitador busqueda-imagen (por IP y tope global por dia, ver
+// AppServiceProvider).
+Route::post('/catalogo/buscar-por-imagen', [BusquedaImagenController::class, 'buscar'])
+    ->middleware('throttle:busqueda-imagen')
+    ->name('catalogo.buscar-imagen');
 
 Route::controller(CarritoController::class)->prefix('solicitud')->name('carrito.')->group(function () {
     Route::get('/', 'index')->name('index');

@@ -38,9 +38,10 @@ class SincronizarStockTest extends TestCase
         $this->parametro('tiempo.actualizar', '60');
         $this->parametro('api.id_bod', 'P2ALM');
         $this->parametro('api.id_cia', '1');
-        // Los dos criterios son listas de IDs numericos separados por coma.
+        // Los tres criterios son listas de IDs numericos separados por coma.
         $this->parametro(Parametro::API_CRITERIO_2, '2002');
         $this->parametro(Parametro::API_CRITERIO, '');
+        $this->parametro(Parametro::API_CRITERIO_3, '');
         // El modo por defecto es automatico: es el que deja correr la tarea.
         $this->parametro(Parametro::INV_ACTUALIZAR, Parametro::INV_AUTOMATICO);
         // Sin esto, el inicializador se niega a trabajar (su respaldo es "ya
@@ -974,11 +975,20 @@ class SincronizarStockTest extends TestCase
     {
         $this->parametro(Parametro::API_CRITERIO_2, '2002,2010,2013,2014');
         $this->parametro(Parametro::API_CRITERIO, '3038,1230');
+        $this->parametro(Parametro::API_CRITERIO_3, '9601,9602,9621');
 
         $cuerpo = $this->cuerpoDeLaConsulta();
 
         $this->assertSame([2002, 2010, 2013, 2014], $cuerpo['criterio_2']);
         $this->assertSame([3038, 1230], $cuerpo['criterio']);
+        $this->assertSame([9601, 9602, 9621], $cuerpo['criterio_3']);
+
+        // Orden de las llaves del cuerpo: criterio_3 va justo despues de
+        // criterio_2, como en la coleccion de Postman del ERP.
+        $this->assertSame(
+            ['cant', 'page', 'id_cia', 'id_bod', 'tipo_inv', 'criterio', 'criterio_2', 'criterio_3', 'existencias'],
+            array_keys($cuerpo)
+        );
 
         // El resto del cuerpo acordado con el ERP, para que un cambio en los
         // criterios no se lleve por delante lo demas. id_bod e id_cia salen de
@@ -1034,6 +1044,7 @@ class SincronizarStockTest extends TestCase
     {
         $this->parametro(Parametro::API_CRITERIO, '');
         $this->parametro(Parametro::API_CRITERIO_2, '');
+        $this->parametro(Parametro::API_CRITERIO_3, '');
 
         Http::fake([
             '*/api/v1/token' => Http::response(['token' => 'token-1']),
@@ -1049,9 +1060,52 @@ class SincronizarStockTest extends TestCase
 
             return $peticion->data()['criterio'] === []
                 && $peticion->data()['criterio_2'] === []
+                && $peticion->data()['criterio_3'] === []
                 && str_contains($peticion->body(), '"criterio":[]')
-                && str_contains($peticion->body(), '"criterio_2":[]');
+                && str_contains($peticion->body(), '"criterio_2":[]')
+                && str_contains($peticion->body(), '"criterio_3":[]');
         });
+    }
+
+    /**
+     * criterio_3 sigue exactamente el mecanismo de los otros dos: viaja como
+     * arreglo de ENTEROS (numeros JSON, no cadenas), recorta espacios y
+     * descarta lo que no sea numerico en vez de colarlo como 0.
+     */
+    public function test_criterio_3_viaja_como_arreglo_de_enteros_y_descarta_no_numericos(): void
+    {
+        $this->parametro(Parametro::API_CRITERIO_3, ' 9601 ,9602,,TEXTO,9621,');
+
+        $this->assertSame([9601, 9602, 9621], Parametro::listaEnteros(Parametro::API_CRITERIO_3));
+
+        Http::fake([
+            '*/api/v1/token' => Http::response(['token' => 'token-1']),
+            '*/api/v1/inventario/consultar' => Http::response(['data' => []]),
+        ]);
+
+        $this->artisan('repuestos:sincronizar-stock')->assertSuccessful();
+
+        Http::assertSent(function ($peticion) {
+            return str_contains($peticion->url(), 'inventario/consultar')
+                && $peticion->data()['criterio_3'] === [9601, 9602, 9621]
+                && str_contains($peticion->body(), '"criterio_3":[9601,9602,9621]');
+        });
+    }
+
+    /**
+     * Un criterio_3 inactivo viaja vacio, igual que los otros dos: el filtro no
+     * se aplica, pero la llave sigue en el cuerpo.
+     */
+    public function test_un_criterio_3_inactivo_viaja_vacio(): void
+    {
+        $criterio = $this->parametro(Parametro::API_CRITERIO_3, '9601,9602');
+        $criterio->col_estado = Parametro::ESTADO_INACTIVO;
+        $criterio->save();
+
+        $cuerpo = $this->cuerpoDeLaConsulta();
+
+        $this->assertArrayHasKey('criterio_3', $cuerpo);
+        $this->assertSame([], $cuerpo['criterio_3']);
     }
 
     /**

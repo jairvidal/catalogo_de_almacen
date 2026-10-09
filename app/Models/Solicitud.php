@@ -70,6 +70,31 @@ class Solicitud extends Model
      */
     public const COLUMNAS_BANDEJA = ['numero', 'solicitante', 'items', 'estado', 'atendida'];
 
+    /**
+     * Columnas de referencia que el solicitante diligencia al APROBAR, con su
+     * etiqueta. Es la lista blanca de lo que AprobacionSolicitudService puede
+     * escribir y el orden en que se muestran. La clave es el nombre REAL de la
+     * columna (`cod_OC` con mayusculas); el formulario la envia como `cod_oc`
+     * y la traduce AprobarSolicitudRequest::referencias().
+     *
+     * @var array<string, string>
+     */
+    public const REFERENCIAS_APROBACION = [
+        'cod_referencia' => 'Cod. referencia',
+        'cod_OC' => 'Cod. OC',
+        'dias_entrega' => 'Dias de entrega',
+        'cod_centro_operacion' => 'Centro de operacion',
+        'cod_centro_de_costo' => 'Centro de costo',
+        'cod_proyecto' => 'Proyecto',
+    ];
+
+    /** Las tres de REFERENCIAS_APROBACION que son codigos de una maestra del ERP. */
+    public const REFERENCIAS_DE_MAESTRA = [
+        'cod_centro_operacion' => 'centroOperacion',
+        'cod_centro_de_costo' => 'centroDeCosto',
+        'cod_proyecto' => 'proyecto',
+    ];
+
     protected $table = 'tbl_solicitudes';
 
     protected $fillable = [
@@ -96,13 +121,12 @@ class Solicitud extends Model
      * unicamente AprobacionSolicitudService, despues de releer la solicitud con
      * bloqueo y de comprobar que pertenece al solicitante autenticado.
      *
-     * cod_referencia, cod_OC, dias_entrega, cod_centro_operacion,
-     * cod_centro_de_costo, cod_proyecto y enviado (migraciones
-     * 2026_09_26_100500 y 2026_09_26_100700, que fija los dos nombres cod_)
-     * tampoco son fillable: hoy nada las escribe y su significado esta
-     * pendiente de definir; se abren cuando exista el flujo que las llene y
-     * su validacion. `cod_OC` va con la mayuscula: Eloquent distingue la caja
-     * del atributo aunque SQL Server no la distinga en la columna.
+     * Las columnas de referencia (REFERENCIAS_APROBACION, migraciones
+     * 2026_09_26_100500 y 2026_09_26_100700) tampoco son fillable: las
+     * escribe unicamente AprobacionSolicitudService::aprobar(), con la misma
+     * relectura con bloqueo. `enviado` no la escribe nadie todavia. `cod_OC`
+     * va con la mayuscula: Eloquent distingue la caja del atributo aunque SQL
+     * Server no la distinga en la columna.
      */
     protected function casts(): array
     {
@@ -140,6 +164,64 @@ class Solicitud extends Model
     public function solicitanteErp(): BelongsTo
     {
         return $this->belongsTo(SolicitanteErp::class, 'solicitante_erp_id', 'col_codigo_erp');
+    }
+
+    /*
+     * Maestras del ERP de las columnas de referencia. La base tiene FK
+     * fk_tbl_solicitudes_<columna> hacia cada una (migracion
+     * 2026_09_27_100000); la relacion sirve para mostrar "codigo - nombre".
+     */
+    public function centroOperacion(): BelongsTo
+    {
+        return $this->belongsTo(CentroOperacion::class, 'cod_centro_operacion', 'col_cod_centro_operacion');
+    }
+
+    public function centroDeCosto(): BelongsTo
+    {
+        return $this->belongsTo(CentroDeCosto::class, 'cod_centro_de_costo', 'col_cod_centro_de_costo');
+    }
+
+    public function proyecto(): BelongsTo
+    {
+        return $this->belongsTo(Proyecto::class, 'cod_proyecto', 'col_cod_proyecto');
+    }
+
+    /**
+     * Referencias diligenciadas, listas para las vistas de solo lectura, en el
+     * orden de REFERENCIAS_APROBACION. Las vacias no se devuelven (mismo
+     * criterio que nombre_completo: el renglon no se pinta). Los codigos de
+     * maestra se muestran "codigo - nombre" y, si la fila de la maestra ya no
+     * existe, solo el codigo.
+     *
+     * grupo: 'documento' (referencia, OC, dias) o 'centros' (las maestras),
+     * para que la vista los reparta en sus columnas.
+     *
+     * @return list<array{columna: string, etiqueta: string, valor: string, grupo: string}>
+     */
+    public function referenciasParaMostrar(): array
+    {
+        $filas = [];
+
+        foreach (self::REFERENCIAS_APROBACION as $columna => $etiqueta) {
+            $valor = $this->getAttribute($columna);
+
+            if ($valor === null || trim((string) $valor) === '') {
+                continue;
+            }
+
+            $relacion = self::REFERENCIAS_DE_MAESTRA[$columna] ?? null;
+
+            $filas[] = [
+                'columna' => $columna,
+                'etiqueta' => $etiqueta,
+                'valor' => $relacion !== null
+                    ? ($this->{$relacion}?->texto_opcion ?? (string) $valor)
+                    : (string) $valor,
+                'grupo' => $relacion !== null ? 'centros' : 'documento',
+            ];
+        }
+
+        return $filas;
     }
 
     /**

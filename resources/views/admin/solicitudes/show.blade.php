@@ -170,6 +170,8 @@
                                                 <i class="bi bi-geo-alt me-1"></i>{{ $item->repuesto->ubicacion }}
                                             </div>
                                         @endif
+                                        {{-- Lo que el solicitante diligencio por item al aprobar. --}}
+                                        @include('solicitudes.partials.referencias-item', ['item' => $item])
                                     </td>
 
                                     <td class="text-center">
@@ -298,6 +300,13 @@
                             <dt class="col-5 fw-normal text-secondary">Area</dt>
                             <dd class="col-7">{{ $solicitud->solicitante_area }}</dd>
                         @endif
+
+                        {{-- Referencias que el solicitante diligencio al aprobar
+                             (solo las que tienen valor). --}}
+                        @foreach ($solicitud->referenciasParaMostrar() as $fila)
+                            <dt class="col-5 fw-normal text-secondary">{{ $fila['etiqueta'] }}</dt>
+                            <dd class="col-7 text-break">{{ $fila['valor'] }}</dd>
+                        @endforeach
                     </dl>
 
                     @if ($solicitud->observaciones)
