@@ -20,8 +20,9 @@ use Tests\TestCase;
 
 /**
  * Columnas de referencia que el solicitante diligencia en el encabezado al
- * APROBAR: cod_referencia, cod_OC, dias_entrega y los codigos de las
- * maestras del ERP (centro de operacion, centro de costo, proyecto).
+ * APROBAR: cod_OC y los codigos de las maestras del ERP (centro de
+ * operacion, centro de costo, proyecto). cod_referencia y dias_entrega se
+ * retiraron en V 1.4.25: ya no se aceptan, pero lo que ya tengan se muestra.
  *
  * Corre contra la base de .env: DatabaseTransactions. Las maestras ya tienen
  * filas reales, asi que los codigos de prueba se generan y no se asumen libres.
@@ -128,9 +129,7 @@ class AprobacionReferenciasTest extends TestCase
     private function datosValidos(): array
     {
         return [
-            'cod_referencia' => '  REF-'.$this->marca.'  ',
-            'cod_oc' => 'OC-'.$this->marca,
-            'dias_entrega' => ' 07 ',
+            'cod_oc' => '  OC-'.$this->marca.'  ',
             'cod_centro_operacion' => $this->maestra(CentroOperacion::class),
             'cod_centro_de_costo' => $this->maestra(CentroDeCosto::class),
             'cod_proyecto' => $this->maestra(Proyecto::class),
@@ -164,11 +163,15 @@ class AprobacionReferenciasTest extends TestCase
             ->get(route('solicitante.solicitudes.show', $solicitud->id))
             ->assertOk();
 
-        foreach (['cod_referencia', 'cod_oc', 'dias_entrega', 'cod_centro_operacion', 'cod_centro_de_costo', 'cod_proyecto'] as $campo) {
+        foreach (['cod_oc', 'cod_centro_operacion', 'cod_centro_de_costo', 'cod_proyecto'] as $campo) {
             $respuesta->assertSee('name="'.$campo.'" form="form-aprobar"', false);
         }
 
-        $respuesta->assertSee('inputmode="numeric"', false);
+        // Retirados en V 1.4.25.
+        $respuesta->assertDontSee('name="cod_referencia"', false);
+        $respuesta->assertDontSee('name="dias_entrega"', false);
+        $respuesta->assertDontSee('Cod. referencia');
+        $respuesta->assertDontSee('Dias de entrega');
         $respuesta->assertSee('data-combo-maestra', false);
         $respuesta->assertSee('value="'.$activa.'"', false);
         $respuesta->assertSee($activa.' - Maestra '.$this->marca.' '.$activa);
@@ -177,9 +180,109 @@ class AprobacionReferenciasTest extends TestCase
         $respuesta->assertSee('<button type="submit" disabled hidden', false);
     }
 
+    public function test_el_detalle_por_aprobar_lleva_oculto_el_codigo_erp_del_solicitante(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona);
+
+        $this->actingAs($persona, 'solicitante')
+            ->get(route('solicitante.solicitudes.show', $solicitud->id))
+            ->assertOk()
+            ->assertSee('<input type="hidden" id="cod_solicitante" value="'.e($persona->col_codigo_erp).'">', false);
+
+        // Ya decidida no hay formulario: el campo no se pinta.
+        $solicitud->forceFill(['estado' => Solicitud::ESTADO_PENDIENTE, 'aprobada_at' => now()])->save();
+
+        $this->actingAs($persona, 'solicitante')
+            ->get(route('solicitante.solicitudes.show', $solicitud->id))
+            ->assertOk()
+            ->assertDontSee('id="cod_solicitante"', false);
+    }
+
+    /* --- Observaciones (V 1.4.36) -------------------------------------- */
+
+    public function test_el_portal_por_aprobar_pinta_observaciones_editables_y_sin_el_aviso_de_espera(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona);
+        $solicitud->forceFill(['observaciones' => 'Texto original '.$this->marca])->save();
+
+        $this->actingAs($persona, 'solicitante')
+            ->get(route('solicitante.solicitudes.show', $solicitud->id))
+            ->assertOk()
+            ->assertSee('<textarea id="observaciones" name="observaciones" form="form-aprobar"', false)
+            ->assertSee('Texto original '.$this->marca)
+            ->assertDontSee('Esta solicitud espera la aprobacion de', false)
+            ->assertDontSee('<strong>Observaciones:</strong>', false);
+    }
+
+    public function test_aprobar_guarda_las_observaciones_editadas(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona);
+        $solicitud->forceFill(['observaciones' => 'Original'])->save();
+
+        $this->actingAs($persona, 'solicitante')
+            ->post(route('solicitante.solicitudes.aprobar', $solicitud->id), ['observaciones' => '  Ajustada  '])
+            ->assertRedirect();
+
+        $this->assertSame('Ajustada', $solicitud->fresh()->observaciones);
+        $this->assertSame(Solicitud::ESTADO_PENDIENTE, $solicitud->fresh()->estado);
+    }
+
+    public function test_aprobar_con_observaciones_vacias_las_borra_y_sin_el_campo_las_conserva(): void
+    {
+        $persona = $this->solicitante();
+        $vaciada = $this->solicitudDe($persona);
+        $vaciada->forceFill(['observaciones' => 'Original'])->save();
+        $sinCampo = $this->solicitudDe($persona);
+        $sinCampo->forceFill(['observaciones' => 'Se queda'])->save();
+
+        $this->actingAs($persona, 'solicitante')
+            ->post(route('solicitante.solicitudes.aprobar', $vaciada->id), ['observaciones' => '   ']);
+        $this->actingAs($persona, 'solicitante')
+            ->post(route('solicitante.solicitudes.aprobar', $sinCampo->id), []);
+
+        $this->assertNull($vaciada->fresh()->observaciones);
+        $this->assertSame('Se queda', $sinCampo->fresh()->observaciones);
+    }
+
+    public function test_observaciones_de_mas_de_1000_no_aprueban_y_denegar_no_las_escribe(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona);
+        $solicitud->forceFill(['observaciones' => 'Original'])->save();
+
+        $this->actingAs($persona, 'solicitante')
+            ->post(route('solicitante.solicitudes.aprobar', $solicitud->id), ['observaciones' => str_repeat('a', 1001)])
+            ->assertSessionHasErrors('observaciones');
+        $this->assertSame(Solicitud::ESTADO_POR_APROBAR, $solicitud->fresh()->estado);
+
+        $this->actingAs($persona, 'solicitante')
+            ->post(route('solicitante.solicitudes.denegar', $solicitud->id), ['observaciones' => 'Cambiada']);
+
+        $this->assertSame('Original', $solicitud->fresh()->observaciones);
+    }
+
     /* --- Aprobar -------------------------------------------------------- */
 
-    public function test_aprobar_guarda_los_seis_campos(): void
+    public function test_la_lista_blanca_ya_no_incluye_referencia_ni_dias_pero_la_lectura_si(): void
+    {
+        $this->assertSame(
+            ['cod_OC', 'cod_centro_operacion', 'cod_centro_de_costo', 'cod_proyecto'],
+            array_keys(Solicitud::REFERENCIAS_APROBACION)
+        );
+
+        // Todo lo que se diligencia tambien se muestra, con la misma etiqueta.
+        foreach (Solicitud::REFERENCIAS_APROBACION as $columna => $etiqueta) {
+            $this->assertSame($etiqueta, Solicitud::REFERENCIAS_PARA_MOSTRAR[$columna] ?? null, $columna);
+        }
+
+        $this->assertArrayHasKey('cod_referencia', Solicitud::REFERENCIAS_PARA_MOSTRAR);
+        $this->assertArrayHasKey('dias_entrega', Solicitud::REFERENCIAS_PARA_MOSTRAR);
+    }
+
+    public function test_aprobar_guarda_los_cuatro_campos(): void
     {
         $persona = $this->solicitante();
         $solicitud = $this->solicitudDe($persona);
@@ -193,12 +296,51 @@ class AprobacionReferenciasTest extends TestCase
 
         $fresca = $solicitud->fresh();
         $this->assertSame(Solicitud::ESTADO_PENDIENTE, $fresca->estado);
-        $this->assertSame('REF-'.$this->marca, $fresca->cod_referencia, 'Se recorta.');
-        $this->assertSame('OC-'.$this->marca, $fresca->cod_OC, 'cod_oc del formulario va a cod_OC.');
-        $this->assertSame(7, $fresca->dias_entrega);
+        $this->assertSame('OC-'.$this->marca, $fresca->cod_OC, 'Se recorta y cod_oc del formulario va a cod_OC.');
         $this->assertSame($datos['cod_centro_operacion'], $fresca->cod_centro_operacion);
         $this->assertSame($datos['cod_centro_de_costo'], $fresca->cod_centro_de_costo);
         $this->assertSame($datos['cod_proyecto'], $fresca->cod_proyecto);
+    }
+
+    public function test_un_request_armado_a_mano_no_escribe_referencia_ni_dias(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona);
+
+        // Tampoco los valida: un valor que antes se rechazaba ya no frena.
+        $this->actingAs($persona, 'solicitante')
+            ->post(route('solicitante.solicitudes.aprobar', $solicitud->id), [
+                'cod_referencia' => 'REF-'.$this->marca,
+                'dias_entrega' => 'abc',
+                'cod_oc' => 'OC-'.$this->marca,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('exito');
+
+        $fresca = $solicitud->fresh();
+        $this->assertSame(Solicitud::ESTADO_PENDIENTE, $fresca->estado);
+        $this->assertSame('OC-'.$this->marca, $fresca->cod_OC);
+        $this->assertNull($fresca->cod_referencia);
+        $this->assertNull($fresca->dias_entrega);
+    }
+
+    public function test_el_servicio_tampoco_escribe_referencia_ni_dias_y_conserva_lo_anterior(): void
+    {
+        $persona = $this->solicitante();
+        $solicitud = $this->solicitudDe($persona, Solicitud::ESTADO_POR_APROBAR, [
+            'cod_referencia' => 'HISTORICA',
+            'dias_entrega' => 5,
+        ]);
+
+        app(AprobacionSolicitudService::class)->aprobar($solicitud->id, $persona, [
+            'cod_referencia' => 'NUEVA',
+            'dias_entrega' => 9,
+        ]);
+
+        $fresca = $solicitud->fresh();
+        $this->assertSame(Solicitud::ESTADO_PENDIENTE, $fresca->estado);
+        $this->assertSame('HISTORICA', $fresca->cod_referencia);
+        $this->assertSame(5, $fresca->dias_entrega);
     }
 
     public function test_aprobar_sin_diligenciar_deja_las_referencias_en_null(): void
@@ -208,8 +350,7 @@ class AprobacionReferenciasTest extends TestCase
 
         $this->actingAs($persona, 'solicitante')
             ->post(route('solicitante.solicitudes.aprobar', $solicitud->id), [
-                'cod_referencia' => '   ',
-                'dias_entrega' => '',
+                'cod_oc' => '   ',
                 'cod_centro_operacion' => '',
             ])
             ->assertSessionHasNoErrors();
@@ -227,13 +368,8 @@ class AprobacionReferenciasTest extends TestCase
             'codigo inexistente' => ['cod_centro_operacion' => $this->codigoLibre(CentroOperacion::class)],
             'codigo inactivo' => ['cod_centro_de_costo' => $inactivo],
             'proyecto inexistente' => ['cod_proyecto' => $this->codigoLibre(Proyecto::class)],
-            'dias no numerico' => ['dias_entrega' => '5 dias'],
-            'dias decimal' => ['dias_entrega' => '2.5'],
-            'dias negativo' => ['dias_entrega' => '-1'],
-            'dias excesivo' => ['dias_entrega' => '3651'],
-            'referencia larga' => ['cod_referencia' => str_repeat('x', 51)],
             'oc larga' => ['cod_oc' => str_repeat('x', 51)],
-            'arreglo' => ['cod_referencia' => ['x']],
+            'arreglo' => ['cod_oc' => ['x']],
         ];
 
         foreach ($casos as $caso => $datos) {
@@ -262,16 +398,15 @@ class AprobacionReferenciasTest extends TestCase
         $this->actingAs($persona, 'solicitante')
             ->from($ruta)
             ->post(route('solicitante.solicitudes.aprobar', $solicitud->id), [
-                'cod_referencia' => 'REF-'.$this->marca,
-                'dias_entrega' => 'abc',
+                'cod_oc' => 'OC-'.$this->marca,
+                'cod_proyecto' => $this->codigoLibre(Proyecto::class),
             ]);
 
         $this->actingAs($persona, 'solicitante')
             ->get($ruta)
             ->assertOk()
-            ->assertSee('value="REF-'.$this->marca.'"', false)
-            ->assertSee('id="dias_entrega-error"', false)
-            ->assertSee('Los dias de entrega deben ser un numero entero');
+            ->assertSee('value="OC-'.$this->marca.'"', false)
+            ->assertSee('El proyecto elegido no esta disponible');
     }
 
     public function test_denegar_no_escribe_las_referencias(): void
@@ -292,7 +427,7 @@ class AprobacionReferenciasTest extends TestCase
         $persona = $this->solicitante();
         $solicitud = $this->solicitudDe($persona, Solicitud::ESTADO_PENDIENTE, [
             'aprobada_at' => now(),
-            'cod_referencia' => 'ORIGINAL',
+            'cod_OC' => 'ORIGINAL',
         ]);
 
         $this->actingAs($persona, 'solicitante')
@@ -301,8 +436,7 @@ class AprobacionReferenciasTest extends TestCase
             ->assertSessionHas('error');
 
         $referencias = $this->referenciasDe($solicitud);
-        $this->assertSame('ORIGINAL', $referencias['cod_referencia']);
-        $this->assertNull($referencias['cod_OC']);
+        $this->assertSame('ORIGINAL', $referencias['cod_OC']);
         $this->assertNull($referencias['cod_centro_operacion']);
     }
 
@@ -365,7 +499,12 @@ class AprobacionReferenciasTest extends TestCase
     public function test_despues_de_aprobar_se_muestran_en_solo_lectura_en_el_portal_y_el_panel(): void
     {
         $persona = $this->solicitante();
-        $solicitud = $this->solicitudDe($persona);
+        // Valores historicos de las dos columnas retiradas del formulario:
+        // aprobar no los toca y la lectura los sigue mostrando.
+        $solicitud = $this->solicitudDe($persona, Solicitud::ESTADO_POR_APROBAR, [
+            'cod_referencia' => 'REF-'.$this->marca,
+            'dias_entrega' => 12,
+        ]);
         $datos = $this->datosValidos();
 
         $this->actingAs($persona, 'solicitante')
@@ -376,6 +515,7 @@ class AprobacionReferenciasTest extends TestCase
         $this->actingAs($persona, 'solicitante')
             ->get(route('solicitante.solicitudes.show', $solicitud->id))
             ->assertOk()
+            ->assertSee('Cod. referencia')
             ->assertSee('REF-'.$this->marca)
             ->assertSee('OC-'.$this->marca)
             ->assertSee($datos['cod_centro_operacion'].' - '.$nombreCentro)
@@ -397,6 +537,7 @@ class AprobacionReferenciasTest extends TestCase
             ->assertSee('Cod. OC')
             ->assertSee('OC-'.$this->marca)
             ->assertSee('Dias de entrega')
+            ->assertSee('REF-'.$this->marca)
             ->assertSee($datos['cod_proyecto'].' - Maestra '.$this->marca);
     }
 
@@ -409,6 +550,7 @@ class AprobacionReferenciasTest extends TestCase
             ->get(route('solicitante.solicitudes.show', $solicitud->id))
             ->assertOk()
             ->assertDontSee('Cod. referencia')
+            ->assertDontSee('Dias de entrega')
             ->assertDontSee('Centros y proyecto');
     }
 }

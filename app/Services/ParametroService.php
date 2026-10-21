@@ -35,4 +35,44 @@ class ParametroService
             return $actual;
         });
     }
+
+    /**
+     * Guarda los dos parametros de la seccion "Importacion ERP"
+     * (Parametro::IMPORTACION_ERP). Solo escribe col_valor: nombre, estado y
+     * descripcion no se tocan.
+     *
+     * Los relee con bloqueo dentro de la transaccion y exige que existan los
+     * dos: si falta uno (no se corrio la migracion ni el seeder) no se guarda
+     * ninguno, para no dejar la seccion a medias.
+     *
+     * @throws ValidationException si falta alguno de los dos parametros.
+     */
+    public function guardarImportacionErp(string $url, string $estructuraJson): void
+    {
+        DB::transaction(function () use ($url, $estructuraJson) {
+            $parametros = Parametro::query()
+                ->deImportacionErp()
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('col_nombre');
+
+            $faltan = array_diff(Parametro::IMPORTACION_ERP, $parametros->keys()->all());
+
+            if ($faltan !== []) {
+                throw ValidationException::withMessages([
+                    'importacion_erp' => 'Faltan los parametros '.implode(', ', $faltan)
+                        .'; ejecute las migraciones (php artisan migrate) y vuelva a intentar.',
+                ]);
+            }
+
+            $valores = [
+                Parametro::ERP_IMPORTACION_URL => $url,
+                Parametro::ERP_IMPORTACION_JSON => $estructuraJson,
+            ];
+
+            foreach ($valores as $nombre => $valor) {
+                $parametros[$nombre]->forceFill(['col_valor' => $valor])->save();
+            }
+        });
+    }
 }

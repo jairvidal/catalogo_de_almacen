@@ -2,9 +2,11 @@
     Detalle publico de una solicitud: encabezado, linea de tiempo e items.
 
     $referencias (opcional) decide si se pintan las columnas de referencia
-    (Solicitud::REFERENCIAS_APROBACION):
+    (Solicitud::REFERENCIAS_APROBACION se diligencia; REFERENCIAS_PARA_MOSTRAR
+    se lee):
       null       no se muestran (confirmacion y /consultar, que son publicas)
-      'lectura'  solo las diligenciadas, sin cuadros (portal, ya decidida)
+      'lectura'  solo las que tienen valor, sin cuadros (portal, ya decidida),
+                 incluidas cod_referencia y dias_entrega historicas
       'edicion'  cuadros asociados a <form id="form-aprobar"> (portal, por
                  aprobar); requiere $opcionesReferencia, las listas de las
                  maestras por columna, y $opcionesItem, las de los items
@@ -49,7 +51,16 @@
                     @endif
 
                     <dt class="col-5 fw-normal text-secondary">Solicitante</dt>
-                    <dd class="col-7">{{ $solicitud->solicitante_nombre }}</dd>
+                    <dd class="col-7">
+                        {{ $solicitud->solicitante_nombre }}
+                        {{-- Codigo del ERP del solicitante (tbl_solicitante_erp.col_codigo_erp,
+                             que es lo que guarda solicitante_erp_id). Solo en el portal por
+                             aprobar: la confirmacion y /consultar son publicas. Sin name: no
+                             viaja con ningun formulario. --}}
+                        @if ($editarReferencias)
+                            <input type="hidden" id="cod_solicitante" value="{{ $solicitud->solicitante_erp_id }}">
+                        @endif
+                    </dd>
 
                     {{-- Cedula y correo ENMASCARADOS: vienen del ERP y cualquiera puede
                          elegir un nombre de la lista publica. El telefono no se muestra. --}}
@@ -69,33 +80,23 @@
                     @endif
 
                     @if ($editarReferencias)
-                        {{-- Viajan con el boton Aprobar (atributo form); Denegar no
-                             los guarda. Enter en un cuadro no aprueba: ver el boton
-                             deshabilitado dentro de form-aprobar. --}}
-                        @foreach ([
-                            ['cod_referencia', 'cod_referencia', 50, 'text'],
-                            ['cod_oc', 'cod_OC', 50, 'text'],
-                            ['dias_entrega', 'dias_entrega', null, 'numero'],
-                        ] as [$campo, $columna, $largo, $tipo])
-                            <dt class="col-5 fw-normal text-secondary pt-1">
-                                <label for="{{ $campo }}" class="mb-0">{{ $etiquetas[$columna] }}</label>
-                            </dt>
-                            <dd class="col-7">
-                                <input type="text" id="{{ $campo }}" name="{{ $campo }}" form="form-aprobar"
-                                       class="form-control form-control-sm @error($campo) is-invalid @enderror"
-                                       value="{{ old($campo, $solicitud->getAttribute($columna)) }}"
-                                       autocomplete="off"
-                                       @if ($largo) maxlength="{{ $largo }}" @endif
-                                       @if ($tipo === 'numero')
-                                           inputmode="numeric" pattern="[0-9]*" maxlength="4"
-                                           title="Solo numeros enteros"
-                                       @endif
-                                       @error($campo) aria-describedby="{{ $campo }}-error" @enderror>
-                                @error($campo)
-                                    <div id="{{ $campo }}-error" class="invalid-feedback d-block">{{ $message }}</div>
-                                @enderror
-                            </dd>
-                        @endforeach
+                        {{-- Viaja con el boton Aprobar (atributo form); Denegar no
+                             lo guarda. Enter en el cuadro no aprueba: ver el boton
+                             deshabilitado dentro de form-aprobar. Cod. referencia y
+                             Dias de entrega se retiraron en V 1.4.25. --}}
+                        <dt class="col-5 fw-normal text-secondary pt-1">
+                            <label for="cod_oc" class="mb-0">{{ $etiquetas['cod_OC'] }}</label>
+                        </dt>
+                        <dd class="col-7">
+                            <input type="text" id="cod_oc" name="cod_oc" form="form-aprobar"
+                                   class="form-control form-control-sm @error('cod_oc') is-invalid @enderror"
+                                   value="{{ old('cod_oc', $solicitud->cod_OC) }}"
+                                   autocomplete="off" maxlength="50"
+                                   @error('cod_oc') aria-describedby="cod_oc-error" @enderror>
+                            @error('cod_oc')
+                                <div id="cod_oc-error" class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </dd>
                     @else
                         @foreach ($referenciasDocumento as $fila)
                             <dt class="col-5 fw-normal text-secondary">{{ $fila['etiqueta'] }}</dt>
@@ -178,7 +179,9 @@
             </div>
         </div>
 
-        @if ($solicitud->esta_por_aprobar)
+        {{-- En el portal por aprobar no se pinta: quien mira es el propio
+             aprobador (V 1.4.36). Sigue en la confirmacion y en /consultar. --}}
+        @if ($solicitud->esta_por_aprobar && ! $editarReferencias)
             <div class="alert alert-light border mt-3 mb-0 small d-flex gap-2 align-items-start">
                 <i class="bi bi-person-check mt-1"></i>
                 <div>
@@ -195,7 +198,21 @@
             </div>
         @endif
 
-        @if ($solicitud->observaciones)
+        @if ($editarReferencias)
+            {{-- Editable por el aprobador (V 1.4.36): viaja solo con Aprobar
+                 (atributo form); Denegar no la guarda. Prellenada con lo que
+                 escribio quien hizo la solicitud. --}}
+            <div class="mt-3">
+                <label for="observaciones" class="form-label small fw-semibold mb-1">Observaciones</label>
+                <textarea id="observaciones" name="observaciones" form="form-aprobar"
+                          class="form-control form-control-sm @error('observaciones') is-invalid @enderror"
+                          rows="3" maxlength="1000"
+                          @error('observaciones') aria-describedby="observaciones-error" @enderror>{{ old('observaciones', $solicitud->observaciones) }}</textarea>
+                @error('observaciones')
+                    <div id="observaciones-error" class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+            </div>
+        @elseif ($solicitud->observaciones)
             <div class="alert alert-light border mt-3 mb-0 small">
                 <strong>Observaciones:</strong> {{ $solicitud->observaciones }}
             </div>
@@ -240,7 +257,10 @@
                     <td class="ps-3">
                         <img src="{{ $item->foto_url }}" alt="{{ $item->nombre }}" class="miniatura">
                     </td>
-                    <td class="text-secondary small">{{ $item->repuesto_id }}</td>
+                    {{-- Codigo del repuesto, no la clave primaria (V 1.4.38). Es el
+                         snapshot del item: copia de repuestos.codigo al crear la
+                         solicitud, sin consulta extra por renglon. --}}
+                    <td class="text-secondary small">{{ $item->codigo }}</td>
                     <td>
                         <div class="fw-semibold">{{ $item->nombre }}</div>
                         <span class="repuesto-codigo">{{ $item->codigo }}</span>

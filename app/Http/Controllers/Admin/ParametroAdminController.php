@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Exceptions\SincronizacionEnCursoException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ImportacionErpRequest;
 use App\Http\Requests\ParametroRequest;
 use App\Models\Parametro;
 use App\Services\ParametroService;
@@ -43,7 +44,10 @@ class ParametroAdminController extends Controller
         // cada llamada es una consulta al cache.
         $enCursoDesde = $this->sincronizador->corridaEnCursoDesde();
 
+        // Los de la seccion "Importacion ERP" se editan solo en su propio
+        // formulario: quedan fuera del listado, la busqueda y los conteos.
         $parametros = Parametro::query()
+            ->sinImportacionErp()
             ->buscar($termino)
             ->when($filtro === 'activos', fn ($q) => $q->where('col_estado', Parametro::ESTADO_ACTIVO))
             ->when($filtro === 'inactivos', fn ($q) => $q->where('col_estado', Parametro::ESTADO_INACTIVO))
@@ -57,10 +61,17 @@ class ParametroAdminController extends Controller
             'termino' => $termino,
             'filtro' => $filtro,
             'totales' => [
-                'todos' => Parametro::count(),
-                'activos' => Parametro::where('col_estado', Parametro::ESTADO_ACTIVO)->count(),
-                'inactivos' => Parametro::where('col_estado', Parametro::ESTADO_INACTIVO)->count(),
+                'todos' => Parametro::sinImportacionErp()->count(),
+                'activos' => Parametro::sinImportacionErp()->where('col_estado', Parametro::ESTADO_ACTIVO)->count(),
+                'inactivos' => Parametro::sinImportacionErp()->where('col_estado', Parametro::ESTADO_INACTIVO)->count(),
             ],
+            // El formulario de edicion lee el valor guardado, como el edit
+            // generico; quien CONSUMA estos valores debe leerlos con
+            // Parametro::valor(). null = falta el parametro (sin migrar).
+            'importacionErp' => Parametro::query()
+                ->deImportacionErp()
+                ->pluck('col_valor', 'col_nombre')
+                ->all(),
             'sincronizacion' => [
                 'modo' => $this->sincronizador->modo(),
                 'es_manual' => $this->sincronizador->esManual(),
@@ -108,6 +119,23 @@ class ParametroAdminController extends Controller
         return redirect()
             ->route('admin.parametros.index')
             ->with('exito', "Parametro {$parametro->col_nombre} actualizado.");
+    }
+
+    /**
+     * Seccion "Importacion ERP": guarda URL WS y Estructura JSON. Valida
+     * ImportacionErpRequest y escribe ParametroService.
+     */
+    public function actualizarImportacionErp(ImportacionErpRequest $request): RedirectResponse
+    {
+        try {
+            $this->parametros->guardarImportacionErp($request->url(), $request->estructuraJson());
+        } catch (ValidationException $e) {
+            return back()->withInput()->with('error', $e->validator->errors()->first());
+        }
+
+        return redirect()
+            ->route('admin.parametros.index')
+            ->with('exito', 'Importacion ERP actualizada.');
     }
 
     /**

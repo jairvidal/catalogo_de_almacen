@@ -1,0 +1,199 @@
+{
+    "schema_version": 1,
+    "diagram_type": "sequence",
+    "meta": {
+        "title": "Integracion con el ERP al aprobar (V 1.4.40)",
+        "viewBox": [
+            1060,
+            640
+        ],
+        "column_fit": "spread",
+        "quality_profile": "showcase"
+    },
+    "participants": [
+        {
+            "id": "aprobador",
+            "type": "frontend",
+            "label": "Aprobador",
+            "sublabel": "portal"
+        },
+        {
+            "id": "controlador",
+            "type": "backend",
+            "label": "Controlador",
+            "sublabel": "SolicitudPortal"
+        },
+        {
+            "id": "aprobacion",
+            "type": "backend",
+            "label": "Aprobacion",
+            "sublabel": "SolicitudService"
+        },
+        {
+            "id": "integracion",
+            "type": "backend",
+            "label": "IntegracionErp",
+            "sublabel": "integracionERP()"
+        },
+        {
+            "id": "base",
+            "type": "database",
+            "label": "SQL Server",
+            "sublabel": "parametros + consecutivo"
+        },
+        {
+            "id": "erp",
+            "type": "external",
+            "label": "ERP WS",
+            "sublabel": "erp.importacion_url"
+        }
+    ],
+    "segments": [
+        {
+            "from": 150,
+            "to": 268,
+            "label": "Aprobacion (commit)"
+        },
+        {
+            "from": 276,
+            "to": 470,
+            "label": "Despues del commit"
+        },
+        {
+            "from": 478,
+            "to": 560,
+            "label": "Constancia y aviso"
+        }
+    ],
+    "messages": [
+        {
+            "id": "post",
+            "from": "aprobador",
+            "to": "controlador",
+            "y": 170,
+            "label": "POST aprobar",
+            "variant": "emphasis"
+        },
+        {
+            "id": "aprobar",
+            "from": "controlador",
+            "to": "aprobacion",
+            "y": 205,
+            "label": "aprobar()",
+            "variant": "default"
+        },
+        {
+            "id": "commit",
+            "from": "aprobacion",
+            "to": "base",
+            "y": 245,
+            "label": "lockForUpdate + pendiente + commit",
+            "variant": "security"
+        },
+        {
+            "id": "llamar",
+            "from": "aprobacion",
+            "to": "integracion",
+            "y": 296,
+            "label": "tras correos",
+            "variant": "default"
+        },
+        {
+            "id": "params",
+            "from": "integracion",
+            "to": "base",
+            "y": 330,
+            "label": "plantilla + renglones",
+            "variant": "dashed"
+        },
+        {
+            "id": "numero",
+            "from": "integracion",
+            "to": "base",
+            "y": 370,
+            "label": "UPDATE OUTPUT consecutivo",
+            "variant": "security"
+        },
+        {
+            "id": "enviar",
+            "from": "integracion",
+            "to": "erp",
+            "y": 415,
+            "label": "POST JSON (30 s)",
+            "variant": "emphasis"
+        },
+        {
+            "id": "respuesta",
+            "from": "erp",
+            "to": "integracion",
+            "y": 450,
+            "label": "2xx o fallo",
+            "variant": "return"
+        },
+        {
+            "id": "constancia",
+            "from": "integracion",
+            "to": "base",
+            "y": 498,
+            "label": "erp_error + bitacora JSON",
+            "variant": "dashed"
+        },
+        {
+            "id": "flash",
+            "from": "controlador",
+            "to": "aprobador",
+            "y": 545,
+            "label": "exito + aviso si fallo",
+            "variant": "return"
+        }
+    ],
+    "activations": [
+        {
+            "participant": "controlador",
+            "from": 165,
+            "to": 550,
+            "type": "backend"
+        },
+        {
+            "participant": "aprobacion",
+            "from": 200,
+            "to": 520,
+            "type": "backend"
+        },
+        {
+            "participant": "integracion",
+            "from": 291,
+            "to": 505,
+            "type": "backend"
+        }
+    ],
+    "cards": [
+        {
+            "dot": "emerald",
+            "title": "Nunca revierte",
+            "items": [
+                "Corre despues del commit",
+                "integracionERP no lanza",
+                "Fallo = Log + erp_error + aviso"
+            ]
+        },
+        {
+            "dot": "orange",
+            "title": "Consecutivo",
+            "items": [
+                "tbl_consecutivo, primero = 1",
+                "Solo si URL y plantilla sirven",
+                "Un reenvio reusa erp_numero"
+            ]
+        },
+        {
+            "dot": "rose",
+            "title": "JSON y bitacora",
+            "items": [
+                "Un objeto de movimiento por renglon",
+                "json_encode por valor, validado",
+                "integracion-erp.txt hora Colombia"
+            ]
+        }
+    ]
+}

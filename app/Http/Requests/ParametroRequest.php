@@ -37,6 +37,9 @@ class ParametroRequest extends FormRequest
                 // y guion bajo, sin espacios.
                 'regex:/^[a-z][a-z0-9_.]*$/',
                 Rule::unique('tbl_parametro', 'col_nombre')->ignore($parametroId),
+                // Los de la seccion "Importacion ERP" tienen su propio
+                // formulario y su propia validacion (ImportacionErpRequest).
+                Rule::notIn(Parametro::IMPORTACION_ERP),
             ],
             // Tres casos, y los tres se deciden EN EL SERVIDOR; lo que hace el
             // formulario (radios, ayuda del campo) es comodidad, no la barrera:
@@ -78,6 +81,7 @@ class ParametroRequest extends FormRequest
     {
         return [
             'col_nombre.regex' => 'El nombre solo admite minusculas, numeros, punto y guion bajo, y debe empezar por letra.',
+            'col_nombre.not_in' => 'Ese parametro pertenece a la seccion "Importacion ERP" y se edita alli.',
             'col_valor.regex' => 'Este parametro es una lista de IDs numericos separados por coma (ej: 3038,1230). '
                 .'Los nombres de grupo o subgrupo ya no los acepta la API de inventario.',
         ];

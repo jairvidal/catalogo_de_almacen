@@ -133,6 +133,51 @@ class RepuestoFotoAdminTest extends TestCase
         $this->assertTrue($actualizado->fecha_actualizacion->greaterThan($marca));
     }
 
+    /**
+     * "Tipo de repuesto" (desc_cat_3) es de solo lectura en Editar: se muestra,
+     * sin name, y en Nuevo repuesto no se pinta.
+     */
+    public function test_editar_muestra_el_tipo_de_repuesto_en_solo_lectura(): void
+    {
+        $repuesto = $this->nuevoRepuesto();
+        Repuesto::where('id', $repuesto->id)->update(['desc_cat_3' => 'INVENT MATERIA PRIMA']);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->get(route('admin.repuestos.edit', $repuesto))
+            ->assertOk()
+            ->assertSee('Tipo de repuesto')
+            ->assertSee('value="INVENT MATERIA PRIMA"', false)
+            ->assertDontSee('name="desc_cat_3"', false);
+
+        Repuesto::where('id', $repuesto->id)->update(['desc_cat_3' => null]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.repuestos.edit', $repuesto))
+            ->assertOk()
+            ->assertSee('placeholder="Sin tipo"', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.repuestos.create'))
+            ->assertOk()
+            ->assertDontSee('Tipo de repuesto');
+    }
+
+    /** Guardar el formulario no toca desc_cat_3, aunque llegue en el payload. */
+    public function test_guardar_no_modifica_el_tipo_de_repuesto(): void
+    {
+        $repuesto = $this->nuevoRepuesto();
+        Repuesto::where('id', $repuesto->id)->update(['desc_cat_3' => 'INVENT MATERIA PRIMA']);
+
+        $this->actingAs($this->admin())
+            ->put(route('admin.repuestos.update', $repuesto), $this->datosFormulario($repuesto, [
+                'desc_cat_3' => 'VALOR INYECTADO',
+            ]))
+            ->assertRedirect(route('admin.repuestos.index'));
+
+        $this->assertSame('INVENT MATERIA PRIMA', $repuesto->fresh()->desc_cat_3);
+    }
+
     /** El ajuste rapido de existencia desde el listado tambien es una edicion. */
     public function test_ajustar_la_existencia_desde_el_panel_mueve_fecha_actualizacion(): void
     {

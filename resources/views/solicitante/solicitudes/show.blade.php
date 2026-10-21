@@ -15,9 +15,10 @@
 
             {{-- Mismo detalle que la consulta publica: cedula y correo enmascarados,
                  items del snapshot con codigo, nombre, foto y cantidad. --}}
-            {{-- Las referencias del encabezado (cod_referencia, cod_OC, dias,
-                 centros y proyecto) se diligencian mientras esta por aprobar y
-                 despues se muestran en solo lectura. --}}
+            {{-- Las referencias del encabezado (cod_OC, centros y proyecto) se
+                 diligencian mientras esta por aprobar y despues se muestran en
+                 solo lectura, junto con cod_referencia y dias_entrega si una
+                 solicitud anterior a V 1.4.25 las trae. --}}
             @include('solicitudes.partials.detalle', [
                 'solicitud' => $solicitud,
                 'referencias' => $solicitud->esta_por_aprobar ? 'edicion' : 'lectura',
@@ -48,9 +49,9 @@
                     <div class="card-body">
                         <h2 class="h6 mb-1">Su decision</h2>
                         <p class="small text-secondary mb-3">
-                            Los datos del encabezado (referencia, OC, dias de entrega, centros y proyecto)
+                            Los datos del encabezado (OC, centros y proyecto), las observaciones
                             y los de cada repuesto (motivo, bodega, unidad de medida, centros, cantidad,
-                            proyecto, notas y descripcion) son opcionales y se guardan al aprobar.
+                            proyecto y notas) son opcionales y se guardan al aprobar.
                             Denegar no los guarda.
                         </p>
 

@@ -197,6 +197,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 // Suelta el candado que quedo colgado cuando una corrida murio
                 // a medias. Tambien es editar: deja disparar otra corrida.
                 Route::post('/liberar-sincronizacion', 'liberarSincronizacion')->name('liberar')->middleware('permiso:parametros,editar');
+                // Seccion "Importacion ERP" (Parametro::IMPORTACION_ERP). Antes
+                // de PUT /{parametro}, que si no la capturaria.
+                Route::put('/importacion-erp', 'actualizarImportacionErp')->name('importacion-erp')->middleware('permiso:parametros,editar');
                 Route::get('/{parametro}/editar', 'edit')->name('edit')->middleware('permiso:parametros,editar');
                 Route::put('/{parametro}', 'update')->name('update')->middleware('permiso:parametros,editar');
                 Route::delete('/{parametro}', 'destroy')->name('destroy')->middleware('permiso:parametros,eliminar');

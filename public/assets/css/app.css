@@ -1146,13 +1146,15 @@ a:focus-visible {
 
 .tabla-items-aprobacion .columna-cantidad { min-width: 7rem; }
 
-.tabla-items-aprobacion .columna-unidad-negocio { min-width: 6.5rem; }
+/* Und. medida y Bodega: etiqueta de solo lectura, la del repuesto
+   (SolicitudItem::COLUMNAS_DEL_REPUESTO, V 1.4.26 y V 1.4.31). */
+.tabla-items-aprobacion .columna-del-repuesto { min-width: 9rem; }
 
 .tabla-items-aprobacion .columna-texto { min-width: 15rem; }
 
 .tabla-items-aprobacion th { white-space: nowrap; }
 
-/* Notas y descripcion: una linea de alto para no inflar el renglon; la
+/* Notas: una linea de alto para no inflar el renglon; la
    persona la agranda si necesita (resize vertical). */
 .tabla-items-aprobacion .campo-texto-item {
     min-height: calc(1.5em + .5rem + 2px);

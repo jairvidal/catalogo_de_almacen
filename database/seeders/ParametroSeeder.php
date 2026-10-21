@@ -7,7 +7,8 @@ use Illuminate\Database\Seeder;
 
 /**
  * Los nueve parametros que necesita la sincronizacion de stock con la API de
- * inventario de Sidocsa (ver App\Services\InventarioApiSidocsa).
+ * inventario de Sidocsa (ver App\Services\InventarioApiSidocsa), mas los dos de
+ * la seccion "Importacion ERP" (V 1.4.33, Parametro::IMPORTACION_ERP).
  *
  * Todos entran con col_sistema = true: el codigo los pide por nombre y sin
  * ellos la integracion se queda sin configuracion, asi que no se renombran ni
@@ -90,6 +91,20 @@ class ParametroSeeder extends Seeder
             'descripcion' => 'Marca de que repuestos.existencia (el saldo operativo del almacen) ya recibio su '
                 .'carga inicial desde el stock del ERP con repuestos:inicializar-existencia. CUIDADO: '
                 .'ponerlo en "No" habilita esa carga otra vez y borraria lo ya despachado.',
+        ],
+        // Seccion "Importacion ERP" (V 1.4.33): se editan solo desde su propio
+        // formulario y todavia no los lee ningun proceso. Vacios al sembrar.
+        [
+            'nombre' => Parametro::ERP_IMPORTACION_URL,
+            'valor' => '',
+            'descripcion' => 'URL del servicio web (WS) de importacion desde el ERP. Se edita en la seccion '
+                .'"Importacion ERP"; todavia no la usa ningun proceso.',
+        ],
+        [
+            'nombre' => Parametro::ERP_IMPORTACION_JSON,
+            'valor' => '',
+            'descripcion' => 'Estructura JSON de la importacion desde el ERP. Se edita en la seccion '
+                .'"Importacion ERP"; todavia no la usa ningun proceso.',
         ],
     ];
 

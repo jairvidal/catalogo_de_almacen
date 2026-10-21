@@ -61,6 +61,31 @@ class Parametro extends Model
      */
     public const INV_EXISTENCIA_INICIALIZADA = 'inv.existencia_inicializada';
 
+    /** URL del servicio web de importacion desde el ERP (seccion "Importacion ERP"). */
+    public const ERP_IMPORTACION_URL = 'erp.importacion_url';
+
+    /** Estructura JSON de la importacion desde el ERP (seccion "Importacion ERP"). */
+    public const ERP_IMPORTACION_JSON = 'erp.importacion_json';
+
+    /**
+     * Parametros de la seccion "Importacion ERP" de /admin/parametros (V 1.4.33).
+     *
+     * ES LA REGLA DE PERTENENCIA A LA SECCION y vive aqui, no en el Blade: se
+     * editan SOLO desde su propio formulario (PUT admin/parametros/importacion-erp,
+     * ImportacionErpRequest valida URL y JSON). Por eso quedan fuera del listado
+     * general, su busqueda, sus conteos y su paginacion (scopeSinImportacionErp),
+     * las rutas genericas edit/update/destroy no los encuentran (404, ver
+     * resolveRouteBinding) y no se pueden crear con el formulario generico.
+     *
+     * Todavia NO los lee nadie: la semantica de la importacion no esta definida.
+     *
+     * @var list<string>
+     */
+    public const IMPORTACION_ERP = [
+        self::ERP_IMPORTACION_URL,
+        self::ERP_IMPORTACION_JSON,
+    ];
+
     /** Todavia no se hizo la carga inicial de repuestos.existencia. */
     public const INV_NO = '0';
 
@@ -333,6 +358,36 @@ class Parametro extends Model
     public function scopeActivos(Builder $query): Builder
     {
         return $query->where('col_estado', self::ESTADO_ACTIVO);
+    }
+
+    /** Todos menos los de la seccion "Importacion ERP" (listado general y sus conteos). */
+    public function scopeSinImportacionErp(Builder $query): Builder
+    {
+        return $query->whereNotIn('col_nombre', self::IMPORTACION_ERP);
+    }
+
+    /** Solo los de la seccion "Importacion ERP". */
+    public function scopeDeImportacionErp(Builder $query): Builder
+    {
+        return $query->whereIn('col_nombre', self::IMPORTACION_ERP);
+    }
+
+    public static function esDeImportacionErp(?string $nombre): bool
+    {
+        return in_array((string) $nombre, self::IMPORTACION_ERP, true);
+    }
+
+    /**
+     * Las rutas genericas (/admin/parametros/{parametro}/editar, PUT y DELETE)
+     * no encuentran los de la seccion "Importacion ERP": 404 antes de llegar al
+     * FormRequest, para que no haya un segundo camino que los guarde con la
+     * validacion generica (texto libre de 255) en vez de la de URL y JSON.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->resolveRouteBindingQuery($this->newQuery(), $value, $field)
+            ->sinImportacionErp()
+            ->first();
     }
 
     public function getEsActivoAttribute(): bool

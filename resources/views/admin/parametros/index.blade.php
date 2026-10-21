@@ -24,7 +24,8 @@
          (resources/views/components/acordeon-item.blade.php); una seccion nueva
          es otro item dentro de este mismo div, con su id unico. Un parametro
          nuevo no necesita nada: el listado de abajo trae todos los de
-         tbl_parametro y por eso cae solo en "Configuracion API ERP". --}}
+         tbl_parametro (salvo los de Parametro::IMPORTACION_ERP, que tienen su
+         propia seccion) y por eso cae solo en "Configuracion API ERP". --}}
     <div class="accordion accordion-flush acordeon-panel" id="acordeon-parametros">
         <x-acordeon-item id="seccion-api-erp" titulo="Configuracion API ERP" icono="plug">
 
@@ -264,6 +265,73 @@
                     </div>
                 @endif
             </div>
+
+        </x-acordeon-item>
+
+        {{-- Importacion ERP (V 1.4.33): los parametros de
+             Parametro::IMPORTACION_ERP, que solo se editan aqui (el listado de
+             arriba no los trae). Arranca cerrada; se abre sola si vuelve con
+             un error de validacion o con lo digitado, para que se vea. --}}
+        @php
+            $abrirImportacion = $errors->hasAny(['url_ws', 'estructura_json'])
+                || session()->hasOldInput('url_ws')
+                || session()->hasOldInput('estructura_json');
+            $faltaImportacion = count($importacionErp) < count(\App\Models\Parametro::IMPORTACION_ERP);
+        @endphp
+        <x-acordeon-item id="seccion-importacion-erp" titulo="Importacion ERP" icono="cloud-download"
+                         :abierto="$abrirImportacion">
+
+            @if ($faltaImportacion)
+                <div class="alert alert-warning small mb-3" role="alert">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Faltan los parametros de esta seccion. Ejecute <code>php artisan migrate</code> para crearlos.
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('admin.parametros.importacion-erp') }}" class="card border-0 shadow-sm" novalidate>
+                @csrf
+                @method('PUT')
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="url_ws" class="form-label fw-semibold">URL WS</label>
+                        <input type="text" id="url_ws" name="url_ws" inputmode="url" autocomplete="off"
+                               class="form-control font-monospace @error('url_ws') is-invalid @enderror"
+                               value="{{ old('url_ws', $importacionErp[\App\Models\Parametro::ERP_IMPORTACION_URL] ?? '') }}"
+                               maxlength="{{ \App\Http\Requests\ImportacionErpRequest::URL_LARGO_MAXIMO }}"
+                               placeholder="https://servidor/ruta/del/servicio"
+                               aria-describedby="url_ws-ayuda" @readonly(! $puedeEditar)>
+                        <div id="url_ws-ayuda" class="form-text">
+                            Direccion completa del servicio web, con http:// o https://. Opcional.
+                        </div>
+                        @error('url_ws')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="estructura_json" class="form-label fw-semibold">Estructura JSON</label>
+                        <textarea id="estructura_json" name="estructura_json" rows="14" spellcheck="false" autocomplete="off"
+                                  class="form-control font-monospace small @error('estructura_json') is-invalid @enderror"
+                                  aria-describedby="estructura_json-ayuda" @readonly(! $puedeEditar)>{{ old('estructura_json', $importacionErp[\App\Models\Parametro::ERP_IMPORTACION_JSON] ?? '') }}</textarea>
+                        <div id="estructura_json-ayuda" class="form-text">
+                            Debe ser JSON valido; se guarda tal como se escribe. Opcional.
+                        </div>
+                        @error('estructura_json')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        @if ($puedeEditar)
+                            <button type="submit" class="btn btn-marca" @disabled($faltaImportacion)>
+                                <i class="bi bi-floppy me-1"></i>Guardar
+                            </button>
+                        @else
+                            @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'floppy', 'texto' => 'Guardar', 'clases' => 'btn-outline-secondary'])
+                        @endif
+                    </div>
+                </div>
+            </form>
 
         </x-acordeon-item>
     </div>

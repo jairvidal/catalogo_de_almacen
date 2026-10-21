@@ -73,13 +73,33 @@ class Solicitud extends Model
     /**
      * Columnas de referencia que el solicitante diligencia al APROBAR, con su
      * etiqueta. Es la lista blanca de lo que AprobacionSolicitudService puede
-     * escribir y el orden en que se muestran. La clave es el nombre REAL de la
-     * columna (`cod_OC` con mayusculas); el formulario la envia como `cod_oc`
-     * y la traduce AprobarSolicitudRequest::referencias().
+     * escribir. La clave es el nombre REAL de la columna (`cod_OC` con
+     * mayusculas); el formulario la envia como `cod_oc` y la traduce
+     * AprobarSolicitudRequest::referencias().
+     *
+     * cod_referencia y dias_entrega se retiraron del formulario en V 1.4.25:
+     * ya no se diligencian ni se escriben, pero las columnas siguen en la base
+     * y lo que ya tengan se sigue mostrando (REFERENCIAS_PARA_MOSTRAR).
      *
      * @var array<string, string>
      */
     public const REFERENCIAS_APROBACION = [
+        'cod_OC' => 'Cod. OC',
+        'cod_centro_operacion' => 'Centro de operacion',
+        'cod_centro_de_costo' => 'Centro de costo',
+        'cod_proyecto' => 'Proyecto',
+    ];
+
+    /**
+     * Columnas de referencia que se MUESTRAN en solo lectura, con su etiqueta
+     * y en este orden. Es REFERENCIAS_APROBACION mas las que ya no se
+     * diligencian pero pueden traer valor de antes (cod_referencia,
+     * dias_entrega): referenciasParaMostrar() omite las vacias, asi que en
+     * una solicitud nueva nunca aparecen.
+     *
+     * @var array<string, string>
+     */
+    public const REFERENCIAS_PARA_MOSTRAR = [
         'cod_referencia' => 'Cod. referencia',
         'cod_OC' => 'Cod. OC',
         'dias_entrega' => 'Dias de entrega',
@@ -124,7 +144,8 @@ class Solicitud extends Model
      * Las columnas de referencia (REFERENCIAS_APROBACION, migraciones
      * 2026_09_26_100500 y 2026_09_26_100700) tampoco son fillable: las
      * escribe unicamente AprobacionSolicitudService::aprobar(), con la misma
-     * relectura con bloqueo. `enviado` no la escribe nadie todavia. `cod_OC`
+     * relectura con bloqueo. `enviado`, `cod_referencia` y `dias_entrega` no
+     * las escribe nadie (las dos ultimas, desde V 1.4.25). `cod_OC`
      * va con la mayuscula: Eloquent distingue la caja del atributo aunque SQL
      * Server no la distinga en la columna.
      */
@@ -138,6 +159,10 @@ class Solicitud extends Model
             'fecha_listo' => 'datetime',
             'fecha_entrega' => 'datetime',
             'notificado_at' => 'datetime',
+            // Constancia de la integracion con el ERP (V 1.4.39). No son
+            // fillable: las escribe unicamente IntegracionErpService.
+            'erp_numero' => 'integer',
+            'erp_enviado_at' => 'datetime',
         ];
     }
 
@@ -188,7 +213,8 @@ class Solicitud extends Model
 
     /**
      * Referencias diligenciadas, listas para las vistas de solo lectura, en el
-     * orden de REFERENCIAS_APROBACION. Las vacias no se devuelven (mismo
+     * orden de REFERENCIAS_PARA_MOSTRAR (incluye las que ya no se diligencian,
+     * para no ocultar valores historicos). Las vacias no se devuelven (mismo
      * criterio que nombre_completo: el renglon no se pinta). Los codigos de
      * maestra se muestran "codigo - nombre" y, si la fila de la maestra ya no
      * existe, solo el codigo.
@@ -202,7 +228,7 @@ class Solicitud extends Model
     {
         $filas = [];
 
-        foreach (self::REFERENCIAS_APROBACION as $columna => $etiqueta) {
+        foreach (self::REFERENCIAS_PARA_MOSTRAR as $columna => $etiqueta) {
             $valor = $this->getAttribute($columna);
 
             if ($valor === null || trim((string) $valor) === '') {

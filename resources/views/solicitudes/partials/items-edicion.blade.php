@@ -1,17 +1,23 @@
 {{--
     Tabla REPUESTOS del portal mientras la solicitud esta por aprobar: por cada
-    item, todas las columnas de SolicitudItem::REFERENCIAS_APROBACION en el
-    MISMO renglon y en ese orden (Motivo, Bodega, Und. medida, Centro de op.,
-    Centro de costo, Cant. aprobada, Unidad de negocio, Proyecto, Notas y
-    Descripcion). Con anchos minimos la tabla se desplaza dentro de
-    .table-responsive en vez de aplastar los cuadros.
+    item, las columnas de SolicitudItem::REFERENCIAS_APROBACION en el MISMO
+    renglon y en ese orden, con Cant. solicitada (solo lectura) justo antes de
+    `cantidad`: Und. medida, Cant. solicitada, Cant. aprobada, Motivo, Bodega,
+    Centro de op., Centro de costo, Proyecto y Notas. Con anchos minimos la
+    tabla se desplaza dentro de .table-responsive en vez de aplastar los
+    cuadros.
 
     Todo viaja con Aprobar (atributo form="form-aprobar") como
-    items[{id del detalle}][campo]; Denegar no lo guarda. La unidad de negocio
-    se muestra en solo lectura y SIN name: la impone el servidor.
+    items[{id del detalle}][campo]; Denegar no lo guarda. Las de
+    SolicitudItem::COLUMNAS_DEL_REPUESTO (Und. medida desde V 1.4.26, Bodega
+    desde V 1.4.31) se pintan en su lugar como etiqueta de texto, como Cant.
+    solicitada, y SIN name: las impone el servidor desde el repuesto. Unidad de
+    negocio y Descripcion no se pintan desde V 1.4.28 (no estan en
+    REFERENCIAS_APROBACION); la unidad de negocio la sigue imponiendo el
+    servidor ('001').
 
     Parametros:
-      $solicitud      con items cargados
+      $solicitud      con items.repuesto cargados
       $opcionesItem   columna => [codigo => texto], una sola vez para todos
                       los renglones
 --}}
@@ -21,6 +27,16 @@
     $columnas = array_keys($etiquetas);
     $hayOld = session()->hasOldInput();
 
+    // Cant. solicitada va justo antes de la cantidad aprobada; el pie de la
+    // tabla alinea el total bajo ella.
+    $columnasAntesDeSolicitada = array_search('cantidad', $columnas, true);
+
+    // Texto gris cuando el repuesto no trae el dato (COLUMNAS_DEL_REPUESTO).
+    $sinValorDelRepuesto = [
+        'cod_unidad_medida' => 'Sin unidad',
+        'cod_bodega' => 'Sin bodega',
+    ];
+
     // La columna CANTIDAD de solo lectura es la cantidad_solicitada; el cuadro
     // editable es la que ajusta el aprobador. Encabezados distintos para que
     // no se lean como la misma cosa.
@@ -29,9 +45,9 @@
 
     // Ancho minimo de cada tipo de columna (ver .tabla-items-aprobacion en app.css).
     $claseColumna = fn (string $columna) => match (true) {
+        array_key_exists($columna, SolicitudItem::COLUMNAS_DEL_REPUESTO) => 'columna-del-repuesto',
         array_key_exists($columna, SolicitudItem::REFERENCIAS_DE_MAESTRA) => 'columna-lista',
         $columna === 'cantidad' => 'columna-cantidad',
-        $columna === 'cod_unidad_negocio' => 'columna-unidad-negocio',
         default => 'columna-texto',
     };
 
@@ -74,26 +90,38 @@
             <th scope="col" class="ps-3" style="width:5.5rem">Foto</th>
             <th scope="col" style="width:5rem">Id</th>
             <th scope="col" class="columna-repuesto">Repuesto</th>
-            <th scope="col" class="text-end text-nowrap">Cant. solicitada</th>
             @foreach ($columnas as $columna)
+                @if ($columna === 'cantidad')
+                    <th scope="col" class="text-end text-nowrap">Cant. solicitada</th>
+                @endif
                 <th scope="col" class="{{ $claseColumna($columna) }}">{{ $encabezados[$columna] }}</th>
             @endforeach
         </tr>
         </thead>
         <tbody>
+        @php $prefijosUsados = []; @endphp
         @foreach ($solicitud->items as $item)
-            @php $prefijo = "item-{$item->id}"; @endphp
+            @php
+                // id de los campos = codigo del repuesto (repuestos.codigo), uno
+                // distinto por renglon (V 1.4.37). El name sigue por el id del
+                // detalle: es la lista blanca del servidor. Si un repuesto se
+                // repitiera en la misma solicitud (el carrito no lo permite), el
+                // segundo lleva tambien el id del detalle para no duplicar el id.
+                $prefijo = 'item-'.$item->codigoDelRepuesto();
+                if (isset($prefijosUsados[$prefijo])) {
+                    $prefijo .= '-'.$item->id;
+                }
+                $prefijosUsados[$prefijo] = true;
+            @endphp
             <tr class="fila-item">
                 <td class="ps-3">
                     <img src="{{ $item->foto_url }}" alt="{{ $item->nombre }}" class="miniatura">
                 </td>
-                <td class="text-secondary small">{{ $item->repuesto_id }}</td>
+                {{-- Codigo del repuesto (repuestos.codigo), no la clave primaria (V 1.4.38). --}}
+                <td class="text-secondary small">{{ $item->codigoDelRepuesto() }}</td>
                 <td>
                     <div class="fw-semibold">{{ $item->nombre }}</div>
                     <span class="repuesto-codigo">{{ $item->codigo }}</span>
-                </td>
-                <td class="text-end">
-                    <span class="fw-semibold">{{ $item->cantidad_solicitada }}</span>
                 </td>
                 @foreach ($columnas as $columna)
                     @php
@@ -101,6 +129,24 @@
                         $claveError = "items.{$item->id}.{$columna}";
                         $etiquetaOculta = rtrim($etiquetasOcultas[$columna], '.').' del item '.$item->codigo;
                     @endphp
+                    @if ($columna === 'cantidad')
+                        <td class="text-end">
+                            <span class="fw-semibold">{{ $item->cantidad_solicitada }}</span>
+                        </td>
+                    @endif
+                    @if (array_key_exists($columna, SolicitudItem::COLUMNAS_DEL_REPUESTO))
+                        @php $delRepuesto = $item->valorDelRepuesto($columna); @endphp
+                        <td class="{{ $claseColumna($columna) }} text-center">
+                            {{-- Etiqueta, como Cant. solicitada: no es un campo y no viaja.
+                                 El servidor impone el valor del repuesto al aprobar. --}}
+                            @if ($delRepuesto === null)
+                                <span id="{{ $idCampo }}" class="text-secondary small">{{ $sinValorDelRepuesto[$columna] ?? 'Sin dato' }}</span>
+                            @else
+                                <span id="{{ $idCampo }}" class="fw-bold">{{ $delRepuesto }}</span>
+                            @endif
+                        </td>
+                        @continue
+                    @endif
                     <td class="{{ $claseColumna($columna) }}">
                         @if (array_key_exists($columna, SolicitudItem::REFERENCIAS_DE_MAESTRA))
                             @include('solicitudes.partials.combo-maestra', [
@@ -129,12 +175,6 @@
                                 {{-- La ayuda visible inflaria el renglon: queda para lectores de pantalla y en el title. --}}
                                 <div id="{{ $idCampo }}-ayuda" class="visually-hidden">Hasta 3 decimales, con coma o punto.</div>
                             @enderror
-                        @elseif ($columna === 'cod_unidad_negocio')
-                            <label for="{{ $idCampo }}" class="visually-hidden">{{ $etiquetaOculta }}</label>
-                            {{-- Sin name: no viaja. El servidor impone el valor. --}}
-                            <input type="text" id="{{ $idCampo }}"
-                                   class="form-control form-control-sm" readonly
-                                   value="{{ SolicitudItem::UNIDAD_NEGOCIO_POR_DEFECTO }}">
                         @else
                             <label for="{{ $idCampo }}" class="visually-hidden">{{ $etiquetaOculta }}</label>
                             <textarea id="{{ $idCampo }}" name="items[{{ $item->id }}][{{ $columna }}]" form="form-aprobar"
@@ -152,9 +192,10 @@
         </tbody>
         <tfoot class="table-light">
         <tr>
-            <td colspan="3" class="text-end fw-semibold">Total unidades</td>
+            {{-- Foto, Id, Repuesto y las referencias anteriores a Cant. solicitada. --}}
+            <td colspan="{{ 3 + $columnasAntesDeSolicitada }}" class="text-end fw-semibold">Total unidades</td>
             <td class="text-end fw-bold">{{ $solicitud->total_unidades }}</td>
-            <td colspan="{{ count($columnas) }}"></td>
+            <td colspan="{{ count($columnas) - $columnasAntesDeSolicitada }}"></td>
         </tr>
         </tfoot>
     </table>

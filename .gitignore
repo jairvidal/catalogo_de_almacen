@@ -3,6 +3,7 @@
 /public/build
 /public/hot
 /public/storage
+/public/img.zip
 /storage/*.key
 /storage/pail
 /vendor
@@ -25,5 +26,8 @@ yarn-error.log
 *.png
 *.jpg
 *.jpeg
+changelog.txt
+feature_list.json
+COMANDOS.txt
 changelog.txt
 feature_list.json

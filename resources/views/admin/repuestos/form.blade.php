@@ -1,6 +1,11 @@
 @extends('layouts.admin')
 
-@php $esNuevo = ! $repuesto->exists; @endphp
+@php
+    $esNuevo = ! $repuesto->exists;
+    // En edicion Grupo, Subgrupo y Tipo de repuesto comparten la fila; en
+    // creacion no hay tipo que mostrar y Grupo / Subgrupo quedan como siempre.
+    $anchoGrupo = $esNuevo ? 'col-sm-6' : 'col-sm-4';
+@endphp
 
 @section('titulo', $esNuevo ? 'Nuevo repuesto' : 'Editar '.$repuesto->codigo)
 
@@ -71,7 +76,7 @@
                                 @enderror
                             </div>
 
-                            <div class="col-sm-6">
+                            <div class="{{ $anchoGrupo }}">
                                 <label for="desc_cat_1" class="form-label">Grupo</label>
                                 <input type="text" class="form-control @error('desc_cat_1') is-invalid @enderror"
                                        id="desc_cat_1" name="desc_cat_1" list="listaGrupos"
@@ -86,7 +91,7 @@
                                 @enderror
                             </div>
 
-                            <div class="col-sm-6">
+                            <div class="{{ $anchoGrupo }}">
                                 <label for="desc_cat_2" class="form-label">Subgrupo</label>
                                 <input type="text" class="form-control @error('desc_cat_2') is-invalid @enderror"
                                        id="desc_cat_2" name="desc_cat_2"
@@ -96,6 +101,20 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
+
+                            @unless ($esNuevo)
+                                <div class="col-sm-4">
+                                    {{-- Solo lectura y sin name: desc_cat_3 lo trae el ERP, no es
+                                         fillable ni tiene regla en RepuestoRequest, asi que guardar
+                                         el formulario no lo toca. No confundir con el filtro
+                                         "Tipo de repuesto" del catalogo publico (desc_cat_1). --}}
+                                    <label for="desc_cat_3" class="form-label">Tipo de repuesto</label>
+                                    <input type="text" class="form-control-plaintext px-2 border rounded bg-body-secondary"
+                                           id="desc_cat_3" value="{{ $repuesto->desc_cat_3 }}"
+                                           placeholder="Sin tipo" readonly disabled>
+                                    <div class="form-text">Lo trae el ERP.</div>
+                                </div>
+                            @endunless
 
                             <div class="col-sm-3">
                                 <label for="unidad_medida" class="form-label">

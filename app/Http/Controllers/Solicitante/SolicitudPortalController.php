@@ -12,9 +12,11 @@ use App\Models\SolicitanteErp;
 use App\Models\Solicitud;
 use App\Models\SolicitudItem;
 use App\Services\AprobacionSolicitudService;
+use App\Services\IntegracionErpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -68,7 +70,9 @@ class SolicitudPortalController extends Controller
         // referencias (cabecera e items) se muestran en solo lectura, y solo
         // entonces se precargan las maestras de los items.
         if ($solicitud->esta_por_aprobar) {
-            $solicitud->load('items');
+            // El repuesto da la unidad de medida y la bodega de solo lectura de
+            // cada item (SolicitudItem::COLUMNAS_DEL_REPUESTO).
+            $solicitud->load(SolicitudItem::relacionRepuestoParaAprobar('items.'));
             [$opciones, $opcionesItem] = $this->opcionesDeAprobacion();
         } else {
             $solicitud->load(array_merge(
@@ -104,6 +108,11 @@ class SolicitudPortalController extends Controller
         $porItem = [];
 
         foreach (SolicitudItem::REFERENCIAS_DE_MAESTRA as $columna => $relacion) {
+            // Sin lista: unidad de medida y bodega salen del repuesto (solo lectura).
+            if (array_key_exists($columna, SolicitudItem::COLUMNAS_DEL_REPUESTO)) {
+                continue;
+            }
+
             $porItem[$columna] = $cabecera[$columna]
                 ?? (new SolicitudItem)->{$relacion}()->getRelated()::opcionesActivas();
         }
@@ -114,16 +123,26 @@ class SolicitudPortalController extends Controller
     public function aprobar(AprobarSolicitudRequest $request, int $id, AprobacionSolicitudService $servicio): RedirectResponse
     {
         try {
-            $solicitud = $servicio->aprobar($id, $this->solicitante(), $request->referencias(), $request->items());
+            $solicitud = $servicio->aprobar($id, $this->solicitante(), $request->referencias(), $request->items(), $request->observaciones());
         } catch (DecisionSolicitudException $e) {
             // withInput: si un codigo dejo de estar disponible, la persona no
             // tiene que volver a digitar lo demas.
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()
+        $respuesta = redirect()
             ->route('solicitante.solicitudes.show', $solicitud->id)
             ->with(...$this->aviso($solicitud, "Solicitud {$solicitud->numero} aprobada. Ya paso al almacen."));
+
+        // Aviso aparte (flash "aviso"): la aprobacion SI quedo registrada; lo
+        // que fallo fue el envio al ERP, y no se mezcla con el del correo.
+        if ($solicitud->erp_error !== null) {
+            $respuesta->with('aviso', 'La aprobacion quedo registrada, pero no se pudo enviar al ERP: '
+                .Str::after($solicitud->erp_error, IntegracionErpService::PREFIJO_ERROR)
+                .' Informe al administrador.');
+        }
+
+        return $respuesta;
     }
 
     public function denegar(Request $request, int $id, AprobacionSolicitudService $servicio): RedirectResponse

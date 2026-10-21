@@ -28,9 +28,14 @@ use Illuminate\Support\Facades\Mail;
  * Los correos salen DESPUES de confirmar la transaccion y un fallo de SMTP
  * nunca tumba la decision (mismo criterio que notificarPedidoListo): se
  * registra en el log y en tbl_solicitudes.error_notificacion.
+ *
+ * Al aprobar, tambien despues del commit, se envia la solicitud al ERP
+ * (IntegracionErpService::integracionERP, V 1.4.39), con el mismo criterio.
  */
 class AprobacionSolicitudService
 {
+    public function __construct(private IntegracionErpService $integracionErp) {}
+
     /**
      * @param  array<string, string|int|null>  $referencias  columnas de
      *                                                       Solicitud::REFERENCIAS_APROBACION (con su nombre real, cod_OC);
@@ -38,19 +43,37 @@ class AprobacionSolicitudService
      * @param  array<int, array<string, string|null>>  $items  id del detalle =>
      *                                                         columnas de SolicitudItem::REFERENCIAS_APROBACION;
      *                                                         un id que no sea de ESTA solicitud se ignora
+     * @param  string|false|null  $observaciones  texto editado por el aprobador (V 1.4.36);
+     *                                            false = no se envio y se conserva el que habia,
+     *                                            null o vacio = se borra
      *
      * @throws DecisionSolicitudException si ya no esta por aprobar o un codigo
      *                                    de maestra dejo de estar disponible
      */
-    public function aprobar(int $solicitudId, SolicitanteErp $aprobador, array $referencias = [], array $items = []): Solicitud
-    {
-        $solicitud = DB::transaction(function () use ($solicitudId, $aprobador, $referencias, $items) {
+    public function aprobar(
+        int $solicitudId,
+        SolicitanteErp $aprobador,
+        array $referencias = [],
+        array $items = [],
+        string|false|null $observaciones = false,
+    ): Solicitud {
+        $solicitud = DB::transaction(function () use ($solicitudId, $aprobador, $referencias, $items, $observaciones) {
             $solicitud = $this->releerPorAprobar($solicitudId, $aprobador);
 
             // Todo se resuelve (y puede fallar) antes de escribir la primera
             // fila; igual, cualquier excepcion revierte la transaccion entera.
             $cabecera = $this->referenciasAGuardar($referencias);
             $porItem = $this->referenciasDeItemsAGuardar($solicitud, $items);
+
+            if ($observaciones !== false) {
+                $texto = trim((string) $observaciones);
+
+                if (mb_strlen($texto) > 1000) {
+                    throw new DecisionSolicitudException('Las observaciones no pueden pasar de 1000 caracteres.');
+                }
+
+                $cabecera['observaciones'] = $texto === '' ? null : $texto;
+            }
 
             $solicitud->forceFill([
                 'estado' => Solicitud::ESTADO_PENDIENTE,
@@ -73,6 +96,10 @@ class AprobacionSolicitudService
 
         $this->notificarDecision($solicitud, new SolicitudAprobadaMail($solicitud), 'aprobacion');
         $this->avisarAlAlmacen($solicitud);
+
+        // Despues del commit, como los correos: un fallo del ERP queda en
+        // erp_error y nunca deshace la aprobacion (integracionERP no lanza).
+        $this->integracionErp->integracionERP($solicitud);
 
         return $solicitud;
     }
@@ -143,7 +170,9 @@ class AprobacionSolicitudService
      * "abc" encontraria "ABC").
      *
      * Todas se escriben, tambien las que llegan vacias: aprobar sin
-     * diligenciarlas las deja en null.
+     * diligenciarlas las deja en null. cod_referencia y dias_entrega ya no
+     * estan en la lista (V 1.4.25): no se escriben, ni siquiera a null, para
+     * no borrar el valor que una solicitud anterior pudiera tener.
      *
      * @param  array<string, string|int|null>  $referencias
      * @return array<string, string|int|null>
@@ -185,7 +214,13 @@ class AprobacionSolicitudService
      *    un item de otra solicitud.
      *  - Se escriben TODOS los items de la solicitud; el que no llega en la
      *    peticion queda con sus referencias en null, como la cabecera.
-     *  - cod_unidad_negocio se impone siempre (UNIDAD_NEGOCIO_POR_DEFECTO).
+     *  - cod_unidad_negocio se impone siempre (UNIDAD_NEGOCIO_POR_DEFECTO),
+     *    aunque desde V 1.4.28 no este en REFERENCIAS_APROBACION.
+     *  - descripcion_item NO se escribe (V 1.4.28): no esta en
+     *    REFERENCIAS_APROBACION, asi que conserva lo que tuviera.
+     *  - cod_unidad_medida y cod_bodega (COLUMNAS_DEL_REPUESTO) se imponen
+     *    desde el repuesto (valoresDelRepuesto()); lo que llegue en la
+     *    peticion se ignora.
      *
      * Los codigos se RELEEN en su maestra activa con una consulta por maestra
      * (no por item), y se exige de nuevo el largo de la columna y la forma de
@@ -197,7 +232,8 @@ class AprobacionSolicitudService
      */
     private function referenciasDeItemsAGuardar(Solicitud $solicitud, array $items): array
     {
-        $detalle = $solicitud->items()->orderBy('id')->get();
+        $detalle = $solicitud->items()->with(SolicitudItem::relacionRepuestoParaAprobar())->orderBy('id')->get();
+        $delRepuesto = $this->valoresDelRepuesto($solicitud, $detalle->all());
         $pedidos = [];
 
         foreach ($detalle as $item) {
@@ -205,13 +241,14 @@ class AprobacionSolicitudService
             $columnas = [];
 
             foreach (array_keys(SolicitudItem::REFERENCIAS_APROBACION) as $columna) {
-                $valor = $campos[$columna] ?? null;
+                // Las del repuesto no se leen de la peticion: se imponen abajo.
+                $valor = array_key_exists($columna, SolicitudItem::COLUMNAS_DEL_REPUESTO) ? null : ($campos[$columna] ?? null);
                 $valor = $valor === null ? null : trim((string) $valor);
                 $columnas[$columna] = $valor === '' ? null : $valor;
             }
 
             $columnas['cod_unidad_negocio'] = SolicitudItem::UNIDAD_NEGOCIO_POR_DEFECTO;
-            $pedidos[] = [$item, $columnas];
+            $pedidos[] = [$item, $delRepuesto[$item->id] + $columnas];
         }
 
         foreach ($pedidos as [$item, $columnas]) {
@@ -219,6 +256,11 @@ class AprobacionSolicitudService
         }
 
         foreach (SolicitudItem::REFERENCIAS_DE_MAESTRA as $columna => $relacion) {
+            // Ya resueltas contra su maestra en valoresDelRepuesto().
+            if (array_key_exists($columna, SolicitudItem::COLUMNAS_DEL_REPUESTO)) {
+                continue;
+            }
+
             $codigos = array_values(array_filter(array_map(fn ($pedido) => $pedido[1][$columna], $pedidos), fn ($valor) => $valor !== null));
             $modelo = (new SolicitudItem)->{$relacion}()->getRelated();
             $activas = $modelo::activasPorCodigos($codigos);
@@ -245,6 +287,59 @@ class AprobacionSolicitudService
         }
 
         return $pedidos;
+    }
+
+    /**
+     * Columnas de SolicitudItem::COLUMNAS_DEL_REPUESTO de cada item
+     * (cod_unidad_medida, cod_bodega): el valor de su repuesto cuando ese
+     * codigo existe ACTIVO en la maestra de la columna, con la clave tal como
+     * esta en la maestra (collation CI: "m" encuentra "M"); si no existe, esta
+     * inactivo o no cabe en la clave, null. A diferencia de lo que elige el
+     * aprobador, esto NO tumba la aprobacion: el aprobador no puede corregirlo
+     * desde el formulario, y la FK rechazaria un codigo ausente de la maestra
+     * (error 547). Una sola consulta por maestra para todos los items.
+     *
+     * @param  list<SolicitudItem>  $detalle  con la relacion repuesto cargada
+     * @return array<int, array<string, string|null>> id del detalle => columna => codigo o null
+     */
+    private function valoresDelRepuesto(Solicitud $solicitud, array $detalle): array
+    {
+        $resultado = array_fill_keys(array_map(fn (SolicitudItem $item) => $item->id, $detalle), []);
+
+        foreach (array_keys(SolicitudItem::COLUMNAS_DEL_REPUESTO) as $columna) {
+            $largo = SolicitudItem::LARGO_MAXIMO[$columna];
+            $delRepuesto = [];
+
+            foreach ($detalle as $item) {
+                $delRepuesto[$item->id] = $item->valorDelRepuesto($columna);
+            }
+
+            $candidatos = array_values(array_filter($delRepuesto, fn ($valor) => $valor !== null && mb_strlen($valor) <= $largo));
+            $maestra = (new SolicitudItem)->{SolicitudItem::REFERENCIAS_DE_MAESTRA[$columna]}()->getRelated();
+            $activas = $maestra::activasPorCodigos($candidatos);
+            $sinMaestra = [];
+
+            foreach ($delRepuesto as $id => $valor) {
+                $fila = $valor === null ? null : ($activas[mb_strtolower($valor)] ?? null);
+                $resultado[$id][$columna] = $fila === null ? null : (string) $fila->getKey();
+
+                if ($valor !== null && $fila === null) {
+                    $sinMaestra[] = $valor;
+                }
+            }
+
+            // Pista para el operador: el item queda sin el dato porque falta la
+            // fila activa en la maestra, no porque el repuesto no lo tenga.
+            if ($sinMaestra !== []) {
+                Log::warning("Codigos de repuestos sin fila activa en {$maestra->getTable()}: el item se aprueba con {$columna} en null.", [
+                    'solicitud' => $solicitud->numero,
+                    'columna' => $columna,
+                    'codigos' => array_values(array_unique($sinMaestra)),
+                ]);
+            }
+        }
+
+        return $resultado;
     }
 
     /**

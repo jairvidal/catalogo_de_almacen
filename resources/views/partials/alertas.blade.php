@@ -16,6 +16,16 @@
     </div>
 @endif
 
+{{-- "aviso": algo secundario fallo aunque la accion principal si quedo hecha
+     (hoy, el envio al ERP despues de aprobar). Convive con exito/error. --}}
+@if (session('aviso'))
+    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-exclamation-circle-fill mt-1"></i>
+        <div class="flex-grow-1">{{ session('aviso') }}</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+@endif
+
 @if ($errors->any())
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <div class="d-flex align-items-start gap-2">

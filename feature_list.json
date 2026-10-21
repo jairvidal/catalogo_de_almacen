@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.24",
+  "version": "1.4.40",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -109,6 +109,22 @@
           ],
           "status": "done",
           "notas": "Mapeo aplicado: en tbl_rol solo existen admin (col_nombre Administrador, del sistema) y almacenista, asi que el perfil administrador es admin. Funcionalidad::ROLES_ADMINISTRADORES lista admin, superadministrador y administrador; las dos ultimas quedan previstas por si se crean desde /admin/roles. No se creo ni se renombro ningun rol. Consecuencia deliberada: permisos ya no se hereda por col_gestiona_catalogo a un rol fuera de la lista. No se hizo revision visual en el navegador."
+        },
+        {
+          "id": "ADM-07",
+          "name": "Seccion de acordeon 'Importacion ERP' en /admin/parametros con URL WS y Estructura JSON",
+          "acceptance": [
+            "Nuevo item de acordeon 'Importacion ERP' dentro de #acordeon-parametros, cerrado al entrar (accordion-button collapsed) y abierto solo si vuelve con error o con lo digitado",
+            "Campos 'URL WS' (input) y 'Estructura JSON' (textarea monoespaciada), opcionales; URL http/https y JSON con sintaxis valida validados en el servidor",
+            "Se guardan en tbl_parametro como erp.importacion_url y erp.importacion_json (col_sistema = true), creados por migracion idempotente y por ParametroSeeder",
+            "tbl_parametro.col_valor pasa a nvarchar(max): un JSON de mas de 255 caracteres se guarda completo; los demas parametros siguen topados a 255",
+            "Los dos se editan solo en su seccion: fuera del listado, busqueda, conteos y paginacion generales; las rutas genericas edit/update/destroy responden 404 y el formulario generico no deja crearlos",
+            "PUT admin/parametros/importacion-erp con permiso:parametros,editar; sin permiso, formulario en solo lectura y boton accion-sin-permiso",
+            "No cambia nada mas del modulo ni de la aplicacion; los valores no se usan todavia en ningun proceso",
+            "Si la Estructura JSON es invalida, el error dice linea, columna y causa (DiagnosticoJson, V 1.4.34)"
+          ],
+          "status": "done",
+          "notas": "V 1.4.33; V 1.4.34 mensaje de error del JSON con ubicacion. Migraciones 2026_10_11_100000 (col_valor nvarchar(255) -> nvarchar(max), DEFAULT rehecho como df_tbl_parametro_col_valor) y 2026_10_11_100100 (los dos parametros). Probado migrate, rollback y migrate otra vez en desarrollo, y que el down aborta con un valor de mas de 255. Sin verificacion visual en navegador."
         }
       ]
     },
@@ -367,6 +383,19 @@
           ],
           "status": "done",
           "notas": "V 1.4.24. Requiere ANTHROPIC_API_KEY y correr una vez php artisan repuestos:indexar-imagenes (incremental). No se ejecuto el indexado real ni se probo contra la API real: todo verificado con Http::fake(). Sin verificacion visual en navegador ni en celular. El porcentaje es un juicio del modelo, no una medida matematica."
+        },
+        {
+          "id": "CAT-17",
+          "name": "Mostrar en Editar repuesto del panel el campo Tipo de repuesto (repuestos.desc_cat_3) en solo lectura",
+          "acceptance": [
+            "En /admin/repuestos/{id}/edit aparece 'Tipo de repuesto' junto a Grupo y Subgrupo, con el valor de desc_cat_3 y 'Sin tipo' en gris si esta vacio",
+            "Campo de solo lectura sin name: no viaja en el formulario",
+            "desc_cat_3 no es fillable ni tiene regla en RepuestoRequest: guardar el formulario no lo modifica aunque llegue en el payload",
+            "Nuevo repuesto no muestra el campo y conserva su distribucion",
+            "Pruebas en RepuestoFotoAdminTest"
+          ],
+          "status": "done",
+          "notas": "V 1.4.30. desc_cat_3 es varchar(50) NULL, creada por fuera de la aplicacion (sin migracion); 24.612 de 28.927 filas vacias al 2026-10-10. No confundir con el filtro 'Tipo de repuesto' del catalogo publico, que filtra por desc_cat_1. Sin verificacion visual en navegador."
         }
       ]
     },
@@ -689,6 +718,113 @@
           ],
           "status": "done",
           "notas": "V 1.4.22. Se retiro SolicitudItem::COLUMNAS_EN_TABLA: la tabla recorre REFERENCIAS_APROBACION. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-17",
+          "name": "Retirar 'Cod. referencia' y 'Dias de entrega' del formulario de aprobacion del portal",
+          "acceptance": [
+            "El encabezado del detalle por aprobar ya no pinta los cuadros cod_referencia ni dias_entrega; la columna Solicitante queda con Cod. OC bajo Area (img000.png)",
+            "AprobarSolicitudRequest ya no los valida ni los entrega en referencias(); se retira DIAS_ENTREGA_MAXIMO",
+            "Solicitud::REFERENCIAS_APROBACION (lista blanca de escritura) queda con cod_OC y las tres maestras: un request o una llamada al servicio con esos campos no los escribe",
+            "Las columnas siguen en la base, sin migracion; los valores ya guardados se siguen mostrando en solo lectura (portal ya decidida y admin/solicitudes/show) via Solicitud::REFERENCIAS_PARA_MOSTRAR",
+            "Pruebas AprobacionReferenciasTest ajustadas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.25. Aprobar ya no escribe esas dos columnas, ni siquiera a null: conserva lo que tuvieran. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-18",
+          "name": "Und. medida del item en solo lectura con la unidad del repuesto en el formulario de aprobacion",
+          "acceptance": [
+            "La columna 'Und. medida' de la tabla REPUESTOS deja de ser lista y muestra repuestos.unidad_medida en solo lectura, sin name, entre Repuesto y Cant. solicitada (img111.png); 'Sin unidad' si el repuesto no la tiene",
+            "AprobarSolicitudRequest no valida ni entrega cod_unidad_medida por item",
+            "AprobacionSolicitudService::aprobar ignora lo enviado e impone la unidad del repuesto si existe ACTIVA en tbl_unidad_medida (una consulta, clave de la maestra); si no, null sin tumbar la aprobacion",
+            "El portal ya no carga la maestra de unidades para el formulario; la lectura de lo guardado no cambia",
+            "Pruebas AprobacionItemsTest ajustadas y nuevas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.26. tbl_unidad_medida solo tiene UND: 2147 repuestos con otra unidad (m, KG, GAL, KIT...) se aprueban con cod_unidad_medida null hasta cargar esas filas en la maestra. V 1.4.27: la celda pasa de input readonly a etiqueta de texto (span en negrita, como Cant. solicitada) para coincidir con img111.png. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-19",
+          "name": "Retirar 'Unidad de negocio' y 'Descripcion' de la tabla REPUESTOS del formulario de aprobacion",
+          "acceptance": [
+            "La tabla REPUESTOS del detalle por aprobar ya no pinta las columnas Unidad de negocio ni Descripcion (img222.png); Notas queda como ultima columna y el colspan del pie se ajusta solo",
+            "SolicitudItem::REFERENCIAS_APROBACION (lista de escritura y columnas del formulario) queda sin cod_unidad_negocio ni descripcion_item; nueva SolicitudItem::REFERENCIAS_PARA_MOSTRAR con las diez para la lectura",
+            "AprobacionSolicitudService::aprobar sigue imponiendo cod_unidad_negocio = '001' y ya no escribe descripcion_item, ni siquiera a null: conserva un valor previo",
+            "AprobarSolicitudRequest ya no valida ni entrega descripcion_item",
+            "Las columnas siguen en la base, sin migracion; los valores ya guardados se siguen mostrando en solo lectura (portal ya decidida y admin/solicitudes/show)",
+            "Pruebas AprobacionItemsTest ajustadas y nuevas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.28. Mismo patron que SOL-17 en la cabecera. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-20",
+          "name": "Mover 'Cant. aprobada' justo despues de 'Cant. solicitada' en la tabla REPUESTOS del formulario de aprobacion",
+          "acceptance": [
+            "Orden del formulario: Repuesto, Und. medida, Cant. solicitada, Cant. aprobada, Motivo, Bodega, Centro de op., Centro de costo, Proyecto, Notas",
+            "Se reordena SolicitudItem::REFERENCIAS_APROBACION; REFERENCIAS_PARA_MOSTRAR no cambia y el orden de solo lectura (portal ya decidida y admin/solicitudes/show) sigue igual",
+            "Mismos nombres de campo, prellenado con cantidad_solicitada, validacion, mensajes y anchos; nada mas del formulario cambia",
+            "Pruebas AprobacionItemsTest ajustadas y nuevas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.29. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-21",
+          "name": "Bodega de cada item en la aprobacion: tomada de repuestos.cod_bodega y mostrada como etiqueta de texto",
+          "acceptance": [
+            "En la tabla REPUESTOS del formulario de aprobar, Bodega se muestra como etiqueta (como Cant. solicitada), sin name y sin lista, en su mismo lugar entre Motivo y Centro de op. (img666.png), con 'Sin bodega' en gris si el repuesto no la tiene",
+            "Al aprobar se guarda en tbl_solicitud_detalle.cod_bodega la bodega del repuesto solo si existe activa en tbl_bodega (clave tal como esta en la maestra); si no, null sin tumbar la aprobacion y con Log::warning",
+            "Lo que llegue en items[id][cod_bodega] se ignora (request y servicio)",
+            "Generalizado: SolicitudItem::COLUMNAS_DEL_REPUESTO es un mapa columna del detalle => columna del repuesto; Und. medida y Bodega usan el mismo mecanismo",
+            "El resto del formulario, del modulo y de la aplicacion no cambia",
+            "Pruebas AprobacionItemsTest ajustadas y nuevas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.31. repuestos.cod_bodega es varchar(10) NULL Modern_Spanish_CI_AS, creada por fuera de la aplicacion (sin migracion, sin FK, no fillable); al 2026-10-10 las 28.927 filas tienen P2ALM, activa en tbl_bodega. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-22",
+          "name": "Mover la columna Bodega justo despues de 'Cant. aprobada' en la tabla REPUESTOS del formulario de aprobacion",
+          "acceptance": [
+            "Orden del formulario: Repuesto, Und. medida, Cant. solicitada, Cant. aprobada, Bodega, Motivo, Centro de op., Centro de costo, Proyecto, Notas",
+            "Se reordena SolicitudItem::REFERENCIAS_APROBACION; REFERENCIAS_PARA_MOSTRAR no cambia y el orden de solo lectura sigue igual",
+            "Bodega sigue siendo etiqueta con repuestos.cod_bodega, sin name, guardada solo si esta activa en tbl_bodega; nada mas del formulario cambia",
+            "Pruebas AprobacionItemsTest ajustadas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.32. Sin verificacion visual en navegador."
+        },
+        {
+          "id": "SOL-27",
+          "name": "Integracion con el ERP al aprobar: funcion integracionERP que arma el JSON (encabezado) desde la plantilla de Importacion ERP y lo envia a la URL WS",
+          "acceptance": [
+            "Se ejecuta despues del commit de la aprobacion; un fallo del API nunca revierte ni tumba la aprobacion",
+            "URL y plantilla salen de erp.importacion_url y erp.importacion_json con Parametro::valor()",
+            "El JSON se arma como String concatenando, con cada valor escapado y validado como JSON",
+            "Encabezado: numero consecutivo desde 1, fecha y fecha_entrega AAAAMMDD de Colombia, numero_OC = cod_OC, solicitante = codigo ERP (cod_solicitante), notas = observaciones, tercero/referencia/cargo vacios y el resto de la plantilla",
+            "Sin URL o con plantilla invalida no se llama al API ni se consume numero",
+            "Constancia en erp_numero, erp_enviado_at y erp_error; aviso al aprobador si fallo",
+            "Pruebas IntegracionErpTest con Http::fake"
+          ],
+          "status": "done",
+          "notas": "V 1.4.39. El detalle se completo en SOL-28. Sin boton de reenvio. Sin verificacion contra el ERP real (URL vacia en la base)."
+        },
+        {
+          "id": "SOL-28",
+          "name": "integracionERP: completar el detalle (movimiento) por renglon y guardar el JSON en una bitacora con hora de Colombia",
+          "acceptance": [
+            "Un objeto por renglon de tbl_solicitud_detalle, en el orden del formulario, usando el primer objeto de la plantilla como molde",
+            "item_id = codigo del repuesto (columna Id), motivo_id, cant (aprobada), und, centro_operacion, centro_costo, proyecto y notas desde lo guardado; descripcion vacia; bodega_id y un de la plantilla; nulo => \"\"",
+            "Armado por concatenacion con json_encode por valor y validacion final",
+            "Bitacora storage/logs/integracion-erp.txt con fecha y hora de Colombia, solicitud, consecutivo, resultado y el JSON enviado",
+            "Sin cambios en el formulario, vistas, ids, names, validacion ni flujo de aprobacion",
+            "Pruebas IntegracionErpTest ampliadas"
+          ],
+          "status": "done",
+          "notas": "V 1.4.40. repuestos.codigo es int: item_id viaja sin ceros a la izquierda. cant viaja como texto (\"2.5\"). Sin verificacion contra el ERP real."
         }
       ]
     }

@@ -18,18 +18,19 @@ use Illuminate\Validation\Rule;
  * traduccion ocurre solo en referencias().
  *
  * Por item (tabla REPUESTOS) llegan items[{id del detalle}][campo]; items()
- * entrega lo validado. cod_unidad_negocio no se acepta: la impone el servicio.
+ * entrega lo validado. cod_unidad_negocio, cod_unidad_medida y cod_bodega no
+ * se aceptan: las impone el servicio. descripcion_item tampoco (V 1.4.28): no
+ * se escribe.
  */
 class AprobarSolicitudRequest extends FormRequest
 {
-    /** Tope de dias_entrega: diez anios. Es un plazo, no un contador libre. */
-    public const DIAS_ENTREGA_MAXIMO = 3650;
-
-    /** Campo del formulario => columna de tbl_solicitudes. */
+    /**
+     * Campo del formulario => columna de tbl_solicitudes. cod_referencia y
+     * dias_entrega no estan desde V 1.4.25: si llegan en un request armado a
+     * mano no se validan ni pasan a referencias(), asi que no se escriben.
+     */
     private const CAMPOS = [
-        'cod_referencia' => 'cod_referencia',
         'cod_oc' => 'cod_OC',
-        'dias_entrega' => 'dias_entrega',
         'cod_centro_operacion' => 'cod_centro_operacion',
         'cod_centro_de_costo' => 'cod_centro_de_costo',
         'cod_proyecto' => 'cod_proyecto',
@@ -40,19 +41,19 @@ class AprobarSolicitudRequest extends FormRequest
 
     /**
      * Campos por item que llegan del formulario (items[{id del detalle}][...]).
-     * cod_unidad_negocio NO esta: la impone el servicio y lo que llegue se
-     * ignora.
+     * cod_unidad_negocio y las de SolicitudItem::COLUMNAS_DEL_REPUESTO
+     * (cod_unidad_medida desde V 1.4.26, cod_bodega desde V 1.4.31) NO estan:
+     * las impone el servicio y lo que llegue se ignora. descripcion_item
+     * tampoco desde V 1.4.28: si llega en un request armado a mano no se
+     * valida ni pasa a items(), asi que no se escribe.
      */
     private const CAMPOS_ITEM = [
         'cod_motivo',
-        'cod_bodega',
-        'cod_unidad_medida',
         'cod_centro_operacion',
         'cod_centro_de_costo',
         'cod_proyecto',
         'cantidad',
         'notas_item',
-        'descripcion_item',
     ];
 
     public function authorize(): bool
@@ -68,10 +69,10 @@ class AprobarSolicitudRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Largos = los de las columnas varchar(50).
-            'cod_referencia' => ['nullable', 'string', 'max:50'],
+            // Largo = el de la columna varchar(50).
             'cod_oc' => ['nullable', 'string', 'max:50'],
-            'dias_entrega' => ['nullable', 'integer', 'min:0', 'max:'.self::DIAS_ENTREGA_MAXIMO],
+            // Mismo tope que al crear la solicitud (StoreSolicitudRequest).
+            'observaciones' => ['nullable', 'string', 'max:1000'],
             // max:10 = la clave varchar(10) de cada maestra.
             'cod_centro_operacion' => [
                 'nullable', 'string', 'max:10',
@@ -104,6 +105,11 @@ class AprobarSolicitudRequest extends FormRequest
         ];
 
         foreach (SolicitudItem::REFERENCIAS_DE_MAESTRA as $columna => $relacion) {
+            // Unidad de medida y bodega salen del repuesto: no se validan porque no se aceptan.
+            if (array_key_exists($columna, SolicitudItem::COLUMNAS_DEL_REPUESTO)) {
+                continue;
+            }
+
             $maestra = (new SolicitudItem)->{$relacion}()->getRelated();
 
             $reglas["items.*.{$columna}"] = [
@@ -117,7 +123,6 @@ class AprobarSolicitudRequest extends FormRequest
             'bail', 'nullable', 'numeric', 'regex:'.SolicitudItem::PATRON_CANTIDAD, 'gt:0',
         ];
         $reglas['items.*.notas_item'] = ['nullable', 'string', 'max:'.SolicitudItem::LARGO_MAXIMO['notas_item']];
-        $reglas['items.*.descripcion_item'] = ['nullable', 'string', 'max:'.SolicitudItem::LARGO_MAXIMO['descripcion_item']];
 
         return $reglas;
     }
@@ -128,12 +133,11 @@ class AprobarSolicitudRequest extends FormRequest
     public function attributes(): array
     {
         $atributos = [
-            'cod_referencia' => 'codigo de referencia',
             'cod_oc' => 'codigo OC',
-            'dias_entrega' => 'dias de entrega',
             'cod_centro_operacion' => 'centro de operacion',
             'cod_centro_de_costo' => 'centro de costo',
             'cod_proyecto' => 'proyecto',
+            'observaciones' => 'observaciones',
             'items' => 'items',
         ];
 
@@ -160,7 +164,6 @@ class AprobarSolicitudRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'dias_entrega.integer' => 'Los dias de entrega deben ser un numero entero, sin decimales ni letras.',
             'cod_centro_operacion.exists' => 'El centro de operacion elegido no esta disponible. Elijalo de nuevo de la lista.',
             'cod_centro_de_costo.exists' => 'El centro de costo elegido no esta disponible. Elijalo de nuevo de la lista.',
             'cod_proyecto.exists' => 'El proyecto elegido no esta disponible. Elijalo de nuevo de la lista.',
@@ -178,18 +181,11 @@ class AprobarSolicitudRequest extends FormRequest
         // otro tipo se deja pasar tal cual para que la regla 'string' lo rechace.
         $limpios = [];
 
-        foreach (array_keys(self::CAMPOS) as $campo) {
+        foreach ([...array_keys(self::CAMPOS), 'observaciones'] as $campo) {
             $valor = $this->input($campo);
 
             if (is_string($valor)) {
                 $valor = trim($valor);
-
-                // "07" es 7 para una persona, pero la regla integer
-                // (FILTER_VALIDATE_INT) lo rechaza por el cero a la izquierda.
-                if ($campo === 'dias_entrega' && $valor !== '' && ctype_digit($valor)) {
-                    $valor = ltrim($valor, '0') ?: '0';
-                }
-
                 $limpios[$campo] = $valor === '' ? null : $valor;
             }
         }
@@ -238,7 +234,7 @@ class AprobarSolicitudRequest extends FormRequest
 
     /**
      * Valores validados por item: id del detalle => columna => valor, solo con
-     * los campos de CAMPOS_ITEM (cod_unidad_negocio nunca). Un id que no sea
+     * los campos de CAMPOS_ITEM (cod_unidad_negocio, cod_unidad_medida y cod_bodega nunca). Un id que no sea
      * un entero positivo se descarta; que pertenezca a la solicitud lo decide
      * el servicio.
      *
@@ -264,9 +260,9 @@ class AprobarSolicitudRequest extends FormRequest
 
     /**
      * Valores validados con el nombre REAL de la columna (cod_OC), listos
-     * para el servicio. dias_entrega va como entero o null.
+     * para el servicio.
      *
-     * @return array<string, string|int|null>
+     * @return array<string, string|null>
      */
     public function referencias(): array
     {
@@ -274,10 +270,24 @@ class AprobarSolicitudRequest extends FormRequest
         $referencias = [];
 
         foreach (self::CAMPOS as $campo => $columna) {
-            $valor = $validados[$campo] ?? null;
-            $referencias[$columna] = $campo === 'dias_entrega' && $valor !== null ? (int) $valor : $valor;
+            $referencias[$columna] = $validados[$campo] ?? null;
         }
 
         return $referencias;
+    }
+
+    /**
+     * Observaciones editadas por el aprobador (V 1.4.36). Devuelve false
+     * cuando el campo NO llego en la peticion, para que el servicio conserve
+     * lo que escribio quien hizo la solicitud; si llego vacio es null (se
+     * borra a proposito).
+     */
+    public function observaciones(): string|false|null
+    {
+        if (! $this->exists('observaciones')) {
+            return false;
+        }
+
+        return $this->validated('observaciones');
     }
 }
