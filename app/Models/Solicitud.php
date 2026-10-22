@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Services\IntegracionErpService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Solicitud extends Model
 {
@@ -365,6 +367,37 @@ class Solicitud extends Model
     public function llegoAlAlmacen(): bool
     {
         return $this->estado !== self::ESTADO_POR_APROBAR && $this->denegada_at === null;
+    }
+
+    /**
+     * ¿Se puede (re)enviar al ERP? UNICA definicion de la regla (V 1.4.41):
+     * la usan la vista del panel, la bandeja y IntegracionErpService::reenviar().
+     *
+     *  - Tiene que haber pasado por la aprobacion del solicitante: las
+     *    historicas (sin aprobada_at) nunca se integraron y no se mandan ahora.
+     *  - No puede estar denegada ni rechazada por el almacen: un documento de
+     *    requisicion de algo que ya no se va a despachar no le sirve al ERP.
+     *  - Y no puede haber llegado ya (erp_enviado_at = respuesta 2xx del ERP).
+     */
+    public function puedeReenviarseAlErp(): bool
+    {
+        return $this->aprobada_at !== null
+            && $this->denegada_at === null
+            && $this->estado !== self::ESTADO_RECHAZADA
+            && $this->erp_enviado_at === null;
+    }
+
+    /**
+     * Motivo del ultimo fallo de la integracion, sin el prefijo con que lo
+     * guarda IntegracionErpService; null si no hay fallo registrado.
+     */
+    public function motivoFalloErp(): ?string
+    {
+        if ($this->erp_error === null || $this->erp_error === '') {
+            return null;
+        }
+
+        return Str::after($this->erp_error, IntegracionErpService::PREFIJO_ERROR);
     }
 
     /**

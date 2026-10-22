@@ -133,6 +133,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
             // accion destructiva del modulo.
             Route::post('/{solicitud}/rechazar', 'rechazar')->name('rechazar')->middleware('permiso:solicitudes,eliminar');
             Route::post('/{solicitud}/reenviar-aviso', 'reenviarAviso')->name('reenviar')->middleware('permiso:solicitudes,editar');
+            // Reintento del envio al ERP (V 1.4.41). Cada clic es un POST
+            // externo de hasta ~2 minutos: throttle por usuario.
+            Route::post('/{solicitud}/reenviar-erp', 'reenviarErp')->name('reenviar-erp')
+                ->middleware(['permiso:solicitudes,editar', 'throttle:10,1']);
         });
 
         // Solicitantes del ERP: listado de solo lectura y asignar/restablecer la

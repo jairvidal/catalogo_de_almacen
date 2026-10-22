@@ -214,6 +214,13 @@
                                     <i class="bi bi-envelope-exclamation me-1"></i>Correo no enviado
                                 </div>
                             @endif
+
+                            {{-- Mismas columnas de la fila: sin consulta extra. --}}
+                            @if ($solicitud->puedeReenviarseAlErp())
+                                <div class="small text-warning-emphasis mt-1">
+                                    <i class="bi bi-cloud-slash me-1"></i>No enviada al ERP
+                                </div>
+                            @endif
                         </td>
 
                         <td class="small text-secondary">

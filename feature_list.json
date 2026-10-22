@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.40",
+  "version": "1.4.41",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -810,7 +810,7 @@
             "Pruebas IntegracionErpTest con Http::fake"
           ],
           "status": "done",
-          "notas": "V 1.4.39. El detalle se completo en SOL-28. Sin boton de reenvio. Sin verificacion contra el ERP real (URL vacia en la base)."
+          "notas": "V 1.4.39. El detalle se completo en SOL-28. Boton de reenvio en SOL-29. Sin verificacion contra el ERP real (URL vacia en la base)."
         },
         {
           "id": "SOL-28",
@@ -825,6 +825,20 @@
           ],
           "status": "done",
           "notas": "V 1.4.40. repuestos.codigo es int: item_id viaja sin ceros a la izquierda. cant viaja como texto (\"2.5\"). Sin verificacion contra el ERP real."
+        },
+        {
+          "id": "SOL-29",
+          "name": "Boton Reenviar al ERP en el detalle de la solicitud del panel",
+          "acceptance": [
+            "Regla unica Solicitud::puedeReenviarseAlErp(): aprobada, no denegada, no rechazada y sin erp_enviado_at",
+            "POST admin/solicitudes/{solicitud}/reenviar-erp con permiso:solicitudes,editar, throttle y 404 si no llego al almacen",
+            "Candado por solicitud compartido con la aprobacion y relectura antes de enviar: dos clics no producen dos POST",
+            "Reutiliza erp_numero; exito y fallo en flash exito / error con el motivo sin prefijo; Log::info con el usuario",
+            "Estado de la integracion visible en show y marca No enviada al ERP en la bandeja",
+            "Pruebas ReenvioErpTest con Http::fake"
+          ],
+          "status": "done",
+          "notas": "V 1.4.41. Rechazada por el almacen no se reenvia. Sin verificacion contra el ERP real ni en navegador."
         }
       ]
     }

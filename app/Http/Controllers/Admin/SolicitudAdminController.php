@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\ReenvioErpException;
 use App\Http\Controllers\Controller;
 use App\Models\Repuesto;
 use App\Models\Solicitud;
 use App\Models\SolicitudItem;
+use App\Services\IntegracionErpService;
 use App\Services\SolicitudService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -260,6 +262,34 @@ class SolicitudAdminController extends Controller
         return $servicio->notificarPedidoListo($solicitud)
             ? back()->with('exito', "Aviso reenviado a {$solicitud->correoDeAviso()}.")
             : back()->with('error', 'No se pudo enviar el correo. '.$this->causaSinAviso($solicitud).'.');
+    }
+
+    /**
+     * Reintenta el envio al ERP de una solicitud aprobada que no llego. La
+     * regla (puedeReenviarseAlErp) y la exclusion entre clics la decide el
+     * servicio; aqui solo se traduce el resultado.
+     */
+    public function reenviarErp(Solicitud $solicitud, IntegracionErpService $servicio): RedirectResponse
+    {
+        $this->exigirQueLlegoAlAlmacen($solicitud);
+
+        // El POST al ERP puede tardar hasta conexion + respuesta (en Windows
+        // max_execution_time cuenta tiempo real): mismo criterio que el boton
+        // Actualizar de la sincronizacion de stock.
+        set_time_limit(IntegracionErpService::CANDADO_SEGUNDOS);
+
+        try {
+            $solicitud = $servicio->reenviar($solicitud->id, Auth::user());
+        } catch (ReenvioErpException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        if ($solicitud->erp_enviado_at !== null) {
+            return back()->with('exito', "Solicitud {$solicitud->numero} enviada al ERP (documento {$solicitud->erp_numero}).");
+        }
+
+        return back()->with('error', "No se pudo enviar la solicitud {$solicitud->numero} al ERP: "
+            .($solicitud->motivoFalloErp() ?? 'motivo no registrado.'));
     }
 
     /**

@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Exceptions\IntegracionErpException;
+use App\Exceptions\ReenvioErpException;
 use App\Models\Parametro;
 use App\Models\Solicitud;
 use App\Models\SolicitudItem;
+use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -73,6 +76,12 @@ class IntegracionErpService
 
     private const FLAGS_JSON = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR;
 
+    /** Candado (Cache::lock) por solicitud: un solo envio al ERP a la vez. */
+    public const CANDADO = 'integracion_erp.solicitud.';
+
+    /** Lo que puede tardar un envio completo (conexion + respuesta), con margen. */
+    public const CANDADO_SEGUNDOS = self::TIMEOUT_CONEXION_SEGUNDOS + self::TIMEOUT_SEGUNDOS + 30;
+
     public function __construct(private BitacoraIntegracionErp $bitacora) {}
 
     /**
@@ -80,8 +89,97 @@ class IntegracionErpService
      *
      * Nunca lanza: devuelve true si el ERP respondio 2xx y false en cualquier
      * otro caso (con el motivo en $solicitud->erp_error).
+     *
+     * Toma el mismo candado que reenviar(): si en ese instante ya hay un envio
+     * de la misma solicitud en curso (un reenvio desde el panel), no manda un
+     * segundo documento y devuelve false sin tocar erp_error.
      */
     public function integracionERP(Solicitud $solicitud): bool
+    {
+        $candado = Cache::lock(self::CANDADO.$solicitud->id, self::CANDADO_SEGUNDOS);
+
+        try {
+            $obtenido = $candado->get();
+        } catch (\Throwable $e) {
+            // Sin candado disponible (falla el store de cache) se envia igual:
+            // la aprobacion no debe perder su envio por esto.
+            Log::error('No se pudo tomar el candado del envio al ERP; se envia sin el.', [
+                'solicitud' => $solicitud->numero,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->enviarDocumento($solicitud);
+        }
+
+        if (! $obtenido) {
+            Log::warning('Envio al ERP omitido: ya hay otro envio de la misma solicitud en curso.', [
+                'solicitud' => $solicitud->numero,
+            ]);
+
+            return false;
+        }
+
+        try {
+            return $this->enviarDocumento($solicitud);
+        } finally {
+            $candado->release();
+        }
+    }
+
+    /**
+     * Reenvio desde el panel (boton "Reenviar al ERP", V 1.4.41).
+     *
+     * Concurrencia: no se puede tener una transaccion abierta durante el POST,
+     * asi que la exclusion la da el candado de cache por solicitud (el mismo
+     * de integracionERP) y, ya con el candado, se RELEE la solicitud y se
+     * vuelve a evaluar puedeReenviarseAlErp(): el segundo clic, o el segundo
+     * administrador, encuentra erp_enviado_at puesto y no manda nada. El
+     * numero del ERP se reutiliza (reservarNumero).
+     *
+     * Devuelve la solicitud releida con el resultado (erp_enviado_at o
+     * erp_error).
+     *
+     * @throws ReenvioErpException si no procede
+     */
+    public function reenviar(int $solicitudId, User $usuario): Solicitud
+    {
+        $candado = Cache::lock(self::CANDADO.$solicitudId, self::CANDADO_SEGUNDOS);
+
+        if (! $candado->get()) {
+            throw new ReenvioErpException('Ya hay un envio de esta solicitud al ERP en curso. Espere un momento y vuelva a consultarla.');
+        }
+
+        try {
+            $solicitud = Solicitud::query()->findOrFail($solicitudId);
+
+            if ($solicitud->erp_enviado_at !== null) {
+                throw new ReenvioErpException("La solicitud {$solicitud->numero} ya fue enviada al ERP (documento {$solicitud->erp_numero}).");
+            }
+
+            if (! $solicitud->puedeReenviarseAlErp()) {
+                throw new ReenvioErpException("La solicitud {$solicitud->numero} no se puede enviar al ERP: solo se envian las aprobadas por el solicitante que no esten rechazadas.");
+            }
+
+            Log::info('Reenvio de la solicitud al ERP desde el panel.', [
+                'solicitud' => $solicitud->numero,
+                'erp_numero' => $solicitud->erp_numero,
+                'usuario_id' => $usuario->id,
+                'usuario' => $usuario->name,
+            ]);
+
+            $this->enviarDocumento($solicitud);
+
+            return $solicitud;
+        } finally {
+            $candado->release();
+        }
+    }
+
+    /**
+     * El envio propiamente dicho. Nunca lanza. Quien lo llama ya tiene (o
+     * intento) el candado de la solicitud.
+     */
+    private function enviarDocumento(Solicitud $solicitud): bool
     {
         $json = null;
         $momento = now();
@@ -209,7 +307,6 @@ class IntegracionErpService
             $objetos = array_map(fn (array $renglon) => $this->objetoJson($molde, $renglon), $renglones);
             $crudos[self::CLAVE_DETALLE] = '['.implode(', ', $objetos).']';
         }
-        
 
         $json = $this->objetoJson($plantilla, $campos, $crudos);
 

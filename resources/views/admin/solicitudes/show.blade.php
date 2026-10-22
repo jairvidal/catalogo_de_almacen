@@ -111,6 +111,46 @@
         </div>
     @endif
 
+    {{-- Integracion con el ERP (V 1.4.41). Solo las que pasaron por la
+         aprobacion del solicitante se integran; las historicas no la pintan. --}}
+    @if ($solicitud->aprobada_at)
+        @if ($solicitud->erp_enviado_at)
+            <div class="alert alert-success d-flex flex-wrap align-items-center gap-2 no-imprimir py-2" data-estado-erp="enviada">
+                <i class="bi bi-cloud-check"></i>
+                <div class="flex-grow-1 small">
+                    Enviada al ERP el {{ $solicitud->erp_enviado_at->format('d/m/Y h:i a') }}
+                    &middot; documento <strong class="font-monospace">{{ $solicitud->erp_numero }}</strong>.
+                </div>
+            </div>
+        @else
+            <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 no-imprimir" data-estado-erp="no-enviada">
+                <i class="bi bi-cloud-slash"></i>
+                <div class="flex-grow-1 small">
+                    <strong>No enviada al ERP.</strong>
+                    @if ($solicitud->erp_numero)
+                        Documento reservado <span class="font-monospace">{{ $solicitud->erp_numero }}</span>.
+                    @endif
+                    <div class="text-break">{{ $solicitud->motivoFalloErp() ?? 'No hay un fallo registrado: el envio no se ha intentado o sigue en curso.' }}</div>
+                </div>
+                @if ($solicitud->puedeReenviarseAlErp())
+                    @if ($puedeEditar)
+                        <form method="POST" action="{{ route('admin.solicitudes.reenviar-erp', $solicitud) }}"
+                              data-confirmar="Se enviara la solicitud {{ $solicitud->numero }} al ERP. Continuar?">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-dark">
+                                <i class="bi bi-cloud-upload me-1"></i>Reenviar al ERP
+                            </button>
+                        </form>
+                    @else
+                        @include('admin.partials.accion-sin-permiso', ['accion' => 'editar', 'icono' => 'cloud-upload', 'texto' => 'Reenviar al ERP', 'clases' => 'btn-sm btn-outline-secondary'])
+                    @endif
+                @else
+                    <span class="small text-secondary">La solicitud esta rechazada: no se reenvia.</span>
+                @endif
+            </div>
+        @endif
+    @endif
+
     <div class="row g-4">
 
         {{-- ------------------------------------------------------------- --}}
