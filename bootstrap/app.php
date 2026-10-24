@@ -7,6 +7,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -39,5 +40,20 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trimStrings(except: ['col_valor']);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Token CSRF vencido (sesion expirada, o cerrada en otra pestana: el
+        // panel y el portal comparten la misma sesion del navegador). En vez de
+        // la pagina cruda "419 Page Expired", se vuelve al formulario con un
+        // token nuevo y lo digitado, nunca las contrasenas. Las peticiones por
+        // fetch siguen recibiendo el 419 en JSON.
+        $exceptions->render(function (TokenMismatchException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return null;
+            }
+
+            return redirect()->back()
+                ->withInput($request->except([
+                    '_token', 'password', 'contrasena', 'contrasena_actual', 'contrasena_confirmation',
+                ]))
+                ->with('error', 'La pagina vencio por inactividad. Intente de nuevo.');
+        });
     })->create();

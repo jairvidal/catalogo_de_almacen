@@ -1,6 +1,6 @@
 {
   "project": "Catalogo Almacen",
-  "version": "1.4.41",
+  "version": "1.4.42",
   "rules": {
     "one_feature_at_a_time": true,
     "valid_status": [
@@ -459,6 +459,22 @@
           ],
           "status": "done",
           "notas": "Referencia visual: img-1.png (colapsado) e img0.png (abierto), el ejemplo Flush de la documentacion de Bootstrap. Pendiente de decidir con el usuario si algun dia el listado se parte en varias secciones y con que regla (prefijo del nombre, columna nueva, mapa en el modelo)."
+        },
+        {
+          "id": "UI-05",
+          "name": "Reorganizar el menu lateral del panel en grupos plegables: Solicitudes, Configuracion, Ordenes de salida y Registro de entradas",
+          "acceptance": [
+            "Cuatro grupos plegables con el collapse de Bootstrap, aria-expanded y aria-controls correctos",
+            "Se conservan los iconos y las condiciones de permiso de cada entrada; un grupo sin nada visible no se pinta",
+            "La bandeja general sigue alcanzable desde el encabezado Solicitudes, que conserva el contador",
+            "El grupo de la pantalla actual arranca abierto con el filete de marca y el enlace activo conserva su marca",
+            "Ordenes de salida y Registro de entradas se pintan como entradas no navegables (sin href, aria-disabled) con 'Proximamente'",
+            "Ids unicos entre el menu lateral y el offcanvas movil",
+            "Estilos en app.css con tokens --ca-*, sin dependencias nuevas",
+            "Prueba MenuPanelTest"
+          ],
+          "status": "done",
+          "notas": "V 1.4.42. Referencia visual: MENU_ALMACEN.png. Los modulos Ordenes de salida y Registro de entradas no existen: solo se pintaron sus entradas deshabilitadas, sin rutas, tablas ni permisos. Sin verificacion visual en navegador."
         }
       ]
     },

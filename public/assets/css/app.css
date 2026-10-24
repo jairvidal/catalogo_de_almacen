@@ -837,6 +837,106 @@ a:focus-visible {
 
 .panel-sidebar hr { border-color: rgba(255, 255, 255, .12); }
 
+/* Grupos plegables del menu (admin/partials/menu, V 1.4.42).
+   El encabezado es una loseta tenue; el filete rojo ("estas aqui") lo lleva
+   solo el grupo que contiene la pantalla actual. */
+.menu-grupo { margin-bottom: .35rem; }
+
+.menu-grupo-encabezado {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    border-radius: var(--ca-radio-md);
+    background-color: rgba(255, 255, 255, .05);
+}
+
+.menu-grupo-encabezado.contiene-activo { background-color: rgba(255, 255, 255, .09); }
+
+.menu-grupo-encabezado.contiene-activo::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .45rem;
+    bottom: .45rem;
+    width: var(--ca-filete);
+    border-radius: var(--ca-filete);
+    background: var(--ca-primario);
+}
+
+.menu-grupo-titulo,
+.menu-grupo-plegar {
+    display: flex;
+    align-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--ca-neutro-300);
+    font-size: .93rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--ca-radio-md);
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.menu-grupo-titulo {
+    flex-grow: 1;
+    gap: .25rem;
+    min-width: 0;
+    padding: .6rem .85rem;
+}
+
+.menu-grupo-plegar { padding: .6rem .7rem; }
+
+.menu-grupo-titulo:hover,
+.menu-grupo-plegar:hover,
+.menu-grupo-titulo.active,
+.menu-grupo-encabezado.contiene-activo .menu-grupo-titulo {
+    color: var(--ca-texto-invertido);
+}
+
+.menu-grupo-titulo:hover,
+.menu-grupo-plegar:hover { background-color: rgba(255, 255, 255, .07); }
+
+.menu-grupo-titulo:focus-visible,
+.menu-grupo-plegar:focus-visible {
+    outline: 2px solid var(--ca-primario);
+    outline-offset: -2px;
+}
+
+/* La flecha apunta abajo con el grupo abierto y a la derecha si esta plegado
+   (Bootstrap pone .collapsed en el disparador). */
+.menu-grupo-flecha { transition: transform .2s ease; }
+.collapsed .menu-grupo-flecha { transform: rotate(-90deg); }
+
+@media (prefers-reduced-motion: reduce) {
+    .menu-grupo-flecha { transition: none; }
+}
+
+.menu-subnivel { padding: .25rem 0 .15rem 1.1rem; }
+
+.menu-subnivel .nav-link {
+    padding: .45rem .75rem;
+    font-size: .88rem;
+}
+
+/* Modulo todavia sin construir: visible pero no navegable. */
+.panel-sidebar .menu-entrada-pendiente,
+.panel-sidebar .menu-entrada-pendiente:hover {
+    color: var(--ca-neutro-500);
+    background-color: transparent;
+    cursor: default;
+}
+
+.menu-proximamente {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ca-neutro-500);
+    border: 1px solid var(--ca-neutro-700);
+    border-radius: 999px;
+    padding: .05rem .45rem;
+    margin-left: .35rem;
+}
+
 .tarjeta-metrica {
     position: relative;
     border: 1px solid var(--ca-borde);

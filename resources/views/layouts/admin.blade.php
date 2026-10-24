@@ -21,14 +21,15 @@
         {{-- ---------------------------------------------------------------- --}}
         {{-- Menu lateral                                                     --}}
         {{-- ---------------------------------------------------------------- --}}
-        <aside class="col-lg-2 panel-sidebar p-3 d-none d-lg-block position-sticky top-0 vh-100">
+        <aside class="col-lg-2 panel-sidebar p-3 d-none d-lg-block position-sticky top-0 vh-100 overflow-y-auto">
             <a href="{{ route('admin.solicitudes.index') }}"
                class="d-flex align-items-center gap-2 text-white text-decoration-none mb-4 px-2">
                 <i class="bi bi-nut-fill fs-4"></i>
                 <span class="fw-bold">Almacen</span>
             </a>
 
-            @include('admin.partials.menu')
+            {{-- El prefijo separa los ids del collapse de los del offcanvas. --}}
+            @include('admin.partials.menu', ['prefijo' => 'lateral'])
 
             <hr class="border-secondary">
 
@@ -70,7 +71,7 @@
                             aria-label="Cerrar"></button>
                 </div>
                 <div class="offcanvas-body">
-                    @include('admin.partials.menu')
+                    @include('admin.partials.menu', ['prefijo' => 'movil'])
                     <hr class="border-secondary">
                     <form method="POST" action="{{ route('admin.logout') }}">
                         @csrf

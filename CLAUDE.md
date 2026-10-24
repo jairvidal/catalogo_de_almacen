@@ -490,6 +490,15 @@ Los datos que no vienen de la imagen (nombre, línea, ubicación, **`existencia`
 
 Layouts: `layouts/app.blade.php` (público) y `layouts/admin.blade.php` (panel), ambos incluyen `partials/alertas`.
 
+### Menú del panel (`admin/partials/menu`, grupos plegables desde V 1.4.42)
+
+Cuatro grupos con el collapse de Bootstrap: **Solicitudes** (Listos para reclamar, Solicitantes del ERP, Catalogo e inventario, Categorias, Ver catalogo publico), **Configuracion** (Roles, Funciones por perfil, Parametros), **Ordenes de salida** y **Registro de entradas**. El partial arma un arreglo `$grupos`; cada entrada lleva `visible` (= `puede(clave, 'ver')`), `ruta`, `activo` (patrón de `routeIs`), icono y etiqueta. Un grupo sin entradas visibles ni enlace propio no se pinta.
+
+- **El encabezado Solicitudes son dos controles**: el texto con el contador es el enlace a la bandeja (`admin.solicitudes.index`, activo también en `show`) y la flecha es un botón aparte que pliega. Sin permiso de ver solicitudes, el encabezado queda solo como botón.
+- El grupo que contiene la ruta actual arranca abierto (`collapse show`, `aria-expanded="true"`) y lleva el filete; el enlace activo conserva `.active` + `aria-current`.
+- **Se incluye dos veces** (lateral y offcanvas móvil) con `['prefijo' => 'lateral' | 'movil']`: los ids del collapse llevan ese prefijo y no deben repetirse.
+- **Ordenes de salida y Registro de entradas NO existen** (sin rutas, controladores ni funcionalidad en la matriz): sus hijos tienen `'ruta' => null` y se pintan sin `href`, con `role="link"`, `aria-disabled="true"` y "Proximamente". Para volverlos reales hay que darles `ruta`, `activo` y `visible` con su permiso. Prueba: `MenuPanelTest`.
+
 ### Marca de agua
 
 El logo de la empresa (`public/logo.png`) aparece de fondo en todas las páginas, vía `partials/marca-agua.blade.php`.
@@ -521,5 +530,5 @@ Todo el color vive en los tokens `--ca-*` del `:root` de `app.css`, que además 
 - La lógica de negocio con transacciones vive en `app/Services`; los controladores solo validan, delegan y redirigen con `back()->with(...)`.
 - Los repuestos no se borran: `destroy` solo pone `activo = false`, porque los items históricos apuntan al registro.
 - **Tablas nuevas**: `tbl_<nombre>` con `id` bigint autoincremental y columnas con prefijo `col_` (ver `tbl_rol`, `tbl_categoria`, `tbl_parametro`). Las tablas anteriores a esta convención (`repuestos`, `users`) se dejan como están. **`tbl_solicitudes` y `tbl_solicitud_detalle` son casos a medias**: desde V 1.4.10 y V 1.4.11 (migraciones `2026_09_26_100200` y `2026_09_26_100300`, antes `solicitudes` y `solicitud_items`) las tablas llevan el prefijo —y sus índices y restricciones con nombre propio pasaron a `tbl_solicitudes_*` / `ck_tbl_solicitudes_*` y `tbl_solicitud_detalle_*`—, pero sus columnas siguen **sin** `col_` (`numero`, `estado`, `solicitud_id`, `repuesto_id`...) y el modelo del detalle sigue siendo `SolicitudItem` con la relación `Solicitud::items()`. El nombre de cada tabla vive solo en el `$table` de su modelo, así que en SQL crudo use `qualifyColumn()` en vez de escribirlo. Las FK que se les agregan sí van sin prefijo para no mezclar estilos dentro de la misma tabla (`repuestos.categoria_id`, `users.rol_id`).
-- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.41**.
+- Cada cambio se registra en `changelog.txt` y el estado de la funcionalidad en `feature_list.json`. Versión actual: **V 1.4.42**.
 - `phpunit.xml` apunta a la base real, así que las pruebas usan `DatabaseTransactions` y **no** `RefreshDatabase` (ver `tests/Feature/RolAdminTest`).
